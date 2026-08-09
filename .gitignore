@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# Local environments and configuration
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs, temporary files, and packaged artifacts
+*.log
+*.tmp
+*.zip
+dist/
+build/

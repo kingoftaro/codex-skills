@@ -1,0 +1,22 @@
+{
+  "symbols": [
+    {
+      "qualified_name": "detect_project.inspect",
+      "kind": "function",
+      "parameters": ["root"],
+      "return_annotation": "dict[str, object]",
+      "async": false
+    },
+    {
+      "qualified_name": "manage_state.timestamp",
+      "kind": "function",
+      "parameters": [],
+      "return_annotation": "str",
+      "async": false
+    },
+    {
+      "qualified_name": "check_python_contracts.Symbol",
+      "kind": "class"
+    }
+  ]
+}

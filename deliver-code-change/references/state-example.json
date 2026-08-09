@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "task_id": "example-change",
+  "route": "Standard",
+  "status": "completed",
+  "current_step": "complete",
+  "completed_steps": [
+    "inspect",
+    "implement",
+    "verify"
+  ],
+  "changed_files": [
+    "src/example.py"
+  ],
+  "verification": [
+    "PASS: focused tests"
+  ],
+  "resume_hint": "",
+  "created_at": "2026-08-06T04:29:20.204838+00:00",
+  "updated_at": "2026-08-06T04:29:50.749785+00:00"
+}

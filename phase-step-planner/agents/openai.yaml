@@ -1,0 +1,4 @@
+interface:
+  display_name: "Phase Step Planner"
+  short_description: "Split large phases into verified implementation steps"
+  default_prompt: "Use $phase-step-planner to audit this phase and prepare the next bounded implementation step."
