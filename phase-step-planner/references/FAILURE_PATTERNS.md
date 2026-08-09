@@ -49,3 +49,19 @@ Read only the patterns relevant to the current phase or step. Convert each selec
 **Typical cause:** Documentation is treated as an implementation deliverable rather than the final result of verification.
 
 **Required guards:** Generate claims from the current run; record exact commands and results; update status and reports only after all required evidence exists; distinguish development complete, accepted, and release-ready.
+
+## Symptom patch creates an adjacent regression
+
+**Signal:** The reported defect disappears, but a default, caller override, invalid-input path, cleanup path, or compatibility behavior breaks in the next review.
+
+**Typical cause:** The fix implements the visible action instead of the governing invariant, and validation reruns only the original reproduction.
+
+**Required guards:** State the invariant before editing; test the original reproduction plus default, override, missing/invalid, cleanup, and compatibility paths; classify regressions separately from latent defects. After two consecutive P1/P2 repair regressions in one step, freeze patches, perform root-cause analysis, and split the step.
+
+## Evidence drift after a repair
+
+**Signal:** Code, raw JSON, report, checklist, and STATUS each look plausible but disagree on thresholds, counts, timestamps, changed files, or pass state.
+
+**Typical cause:** Acceptance artifacts are edited alongside implementation or copied from intended results before the latest commands finish.
+
+**Required guards:** Enforce implementation -> focused regression -> adjacent checks -> full gates -> raw evidence -> report -> STATUS; use a deterministic repository consistency checker where available; never carry dynamic counts or results forward without regenerating them from the final working tree.
