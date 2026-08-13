@@ -1,5 +1,7 @@
 # Codex Skills
 
+English | [简体中文](./README.zh-CN.md)
+
 A focused collection of Codex skills for planning and delivering software changes with explicit scope, repository evidence, and verifiable handoffs.
 
 This repository contains two complementary skills:
@@ -45,18 +47,18 @@ Use `deliver-code-change` directly for a standalone, well-bounded change. Use `p
 
 ```text
 codex-skills/
-├── deliver-code-change/
-│   ├── SKILL.md
-│   ├── README.md
-│   ├── agents/
-│   ├── references/
-│   └── scripts/
-└── phase-step-planner/
-    ├── SKILL.md
-    ├── agents/
-    ├── assets/
-    ├── references/
-    └── scripts/
++-- deliver-code-change/
+|   +-- SKILL.md
+|   +-- README.md
+|   +-- agents/
+|   +-- references/
+|   `-- scripts/
+`-- phase-step-planner/
+    +-- SKILL.md
+    +-- agents/
+    +-- assets/
+    +-- references/
+    `-- scripts/
 ```
 
 Each skill is self-contained. `SKILL.md` is the entry point; supporting references are loaded only when their conditions apply.
