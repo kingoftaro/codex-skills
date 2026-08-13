@@ -1,7 +1,6 @@
 ---
 name: phase-step-planner
 description: Audit and split a large software phase into bounded, independently verifiable implementation steps with a single evidence-backed status snapshot and safe handoff prompts. Use when planning a multi-stage phase, when a phase is too large for one model context, when work will be handed to a lower-capability model, when creating or updating phase README/STEP/STATUS Markdown files, or before continuing a partially implemented phase after another model or session.
-
 ---
 
 # Phase Step Planner

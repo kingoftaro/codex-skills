@@ -10,18 +10,10 @@
 - Verified Git checkpoint: `{{COMMIT_OR_UNCOMMITTED_EXPLANATION}}`
 - Worktree state: {{CLEAN_OR_SUMMARY}}
 
-## Artifact binding
-
-- Phase index: `README.md`
-- Current executable step: `{{CURRENT_STEP_DOCUMENT}}`
-- Current step specification checkpoint: `sha256:{{CURRENT_STEP_SHA256}}`
-- Audited against repository checkpoint: `{{AUDITED_REPOSITORY_CHECKPOINT}}`
-
-For an `accepted` or `release-ready` phase with no active step, use `none` for the current executable step, `not-applicable` for its checkpoint, and leave no step marked `detailed` in `README.md`.
-
 ## Position
 
-- Phase state: not-started / in-progress / development-complete / accepted / release-ready / release-blocked
+- Phase state: not started / in progress / development complete / accepted / release blocked
+- Current executable step: `{{CURRENT_STEP}}`
 - Last accepted step: `{{LAST_ACCEPTED_STEP}}`
 - Next outlined step: `{{NEXT_STEP}}`
 
@@ -29,7 +21,7 @@ For an `accepted` or `release-ready` phase with no active step, use `none` for t
 
 | Capability | Code evidence | Test/evidence | State |
 |---|---|---|---|
-| {{CAPABILITY}} | `{{PATH_OR_SYMBOL}}` | `{{TEST_OR_REPORT}}` | absent / scaffolded / implemented / tested / accepted |
+| {{CAPABILITY}} | `{{PATH_OR_SYMBOL}}` | `{{TEST_OR_REPORT}}` | implemented / tested / accepted |
 
 ## Not yet verified or implemented
 
@@ -54,11 +46,13 @@ For an `accepted` or `release-ready` phase with no active step, use `none` for t
 |---|---|---|---|
 | {{RISK}} | {{SEVERITY}} | {{EVIDENCE}} | {{RESOLUTION}}
 
-## Current handoff
+## Current implementation boundary
 
-- Authoritative boundary: the File boundary and Side-effect policy sections in `{{CURRENT_STEP_DOCUMENT}}`
-- Read-only references supplied to the implementation model: {{READ_ONLY_SCOPE}}
-- Local overrides or exceptions: {{EXPLICIT_OVERRIDES_OR_NONE}}
+- Allowed files/scopes: {{ALLOWED_SCOPE}}
+- Read-only references: {{READ_ONLY_SCOPE}}
+- Forbidden files/scopes: {{FORBIDDEN_SCOPE}}
+- Allowed external effects: {{ALLOWED_EFFECTS}}
+- Effects blocked in tests: {{BLOCKED_EFFECTS}}
 
 ## Next-step entry gate
 

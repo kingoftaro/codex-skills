@@ -4,8 +4,6 @@
 
 {{SINGLE_VERIFIABLE_OUTCOME}}
 
-- Acceptance signal: {{EXACT_ACCEPTANCE_SIGNAL}}
-
 ## Non-goals
 
 - {{EXPLICITLY_EXCLUDED_WORK}}
@@ -19,8 +17,6 @@
 - Git/worktree checkpoint: {{GIT_CHECKPOINT}}
 
 ## File boundary
-
-This section is the authoritative implementation boundary. `STATUS.md` must reference this step and must not redefine the boundary.
 
 | Access | Path | Purpose |
 |---|---|---|
@@ -90,7 +86,6 @@ Record actual exit codes and results. Do not copy historical test counts.
 - Stop when: {{STOP_CONDITION}}
 - Acceptable degradation: {{DEGRADED_PATH}}
 - Do not: {{FORBIDDEN_SHORTCUT}}
-- Rollback or recovery: {{ROLLBACK_OR_RECOVERY}}
 
 ## Deliverables
 

@@ -6,7 +6,6 @@
 - Applicable project rules: `{{AGENTS_PATHS}}`
 - Live status: `STATUS.md`
 - Previous accepted baseline: `{{PREDECESSOR_EVIDENCE}}`
-- Phase directory: `{{PHASE_DIRECTORY}}`
 
 This file describes order and dependencies. It does not claim that a step is complete.
 
@@ -24,13 +23,13 @@ This file describes order and dependencies. It does not claim that a step is com
 
 ## Step dependency map
 
-| Step document | One outcome | Depends on | Primary risk boundary | Specification state |
+| Step | One outcome | Depends on | Primary risk boundary | Specification state |
 |---|---|---|---|---|
-| `{{STEP_DOCUMENT}}` | {{OUTCOME}} | {{DEPENDENCY}} | {{RISK}} | detailed / outline / accepted / deferred |
+| `{{STEP_ID}}` | {{OUTCOME}} | {{DEPENDENCY}} | {{RISK}} | detailed / outline |
 
 ## Progression rule
 
-At most one step may be `detailed`, and it must match the current executable step in `STATUS.md`. Only that step may be implemented. Verify it and update `STATUS.md` before detailing or starting its successor. If repository reality contradicts a step, revise the step from evidence rather than improvising in code.
+Only the current detailed step may be implemented. Verify it and update `STATUS.md` before detailing or starting its successor. If repository reality contradicts a step, revise the step from evidence rather than improvising in code.
 
 ## Final phase gates
 
