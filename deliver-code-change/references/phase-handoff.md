@@ -5,10 +5,12 @@ Use this mode only when a phase planner has produced an applicable `STATUS.md` a
 ## Validate the handoff
 
 1. Read applicable user instructions and `AGENTS.md` files first.
-2. Confirm that `STATUS.md` identifies exactly one current executable STEP and that the phase is not terminal.
-3. Verify that the STEP path is relative, exists inside the phase directory, and matches the detailed step in the phase index when present.
-4. Verify the recorded `sha256:` checkpoint against the STEP's current bytes. Use `phase-step-planner/scripts/validate_phase_artifacts.py <phase-dir>` when that Skill is available; otherwise compute the digest with an existing local tool.
-5. Stop before editing when validation fails, the worktree contradicts the recorded checkpoint, or the requested work exceeds the STEP.
+2. Require handoff schema version `1` in both `STATUS.md` and the current STEP. Stop on an unsupported or mixed version.
+3. Confirm that `STATUS.md` identifies exactly one current executable STEP, records a `PASS` consistency result, and is not terminal. `STALE` and `BLOCKED` are not executable.
+4. Verify that the STEP path is relative, exists inside the phase directory, and matches the detailed step in the phase index when present.
+5. Verify the recorded `sha256:` checkpoint against the STEP's current bytes. Use `phase-step-planner/scripts/validate_phase_artifacts.py <phase-dir>` when that Skill is available; otherwise compute the digest with an existing local tool.
+6. Confirm that STATUS and STEP record the same schema/migration baseline and reviewed repository/worktree checkpoint.
+7. Stop before editing when validation fails, the worktree contradicts the recorded checkpoint, or the requested work exceeds the STEP.
 
 Do not silently repair phase artifacts while acting as the implementation executor.
 

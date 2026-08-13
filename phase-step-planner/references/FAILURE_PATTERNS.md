@@ -65,3 +65,19 @@ Read only the patterns relevant to the current phase or step. Convert each selec
 **Typical cause:** Acceptance artifacts are edited alongside implementation or copied from intended results before the latest commands finish.
 
 **Required guards:** Enforce implementation -> focused regression -> adjacent checks -> full gates -> raw evidence -> report -> STATUS; use a deterministic repository consistency checker where available; never carry dynamic counts or results forward without regenerating them from the final working tree.
+
+## PASS without synchronization warning
+
+**Signal:** A review or re-review reports `PASS` without mentioning that phase
+documents still show the previous state, accepted files remain modified or
+untracked, or code and Git state differ from the recorded checkpoint.
+
+**Typical cause:** The reviewer treats `PASS` as the end of evidence checking,
+does not inspect documents and Git state, or avoids reporting pending work
+because the review itself did not authorize edits or commits.
+
+**Required guards:** After every passing review, compare affected documents with
+code and evidence, inspect the final diff and untracked files, isolate unrelated
+work, and warn about every stale or pending item with a recommended action.
+Update or commit only with existing authority, and require separate authority
+for push. Do not prepare a successor STEP from contradictory inputs.

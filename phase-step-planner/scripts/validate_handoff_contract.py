@@ -70,10 +70,9 @@ def status_text(
     )
 
 
-def validate_static_contract() -> None:
+def validate_static_contract() -> bool:
     status_template = (PLANNER / "assets" / "STATUS_TEMPLATE.md").read_text(encoding="utf-8")
     step_template = (PLANNER / "assets" / "STEP_TEMPLATE.md").read_text(encoding="utf-8")
-    executor = EXECUTOR_HANDOFF.read_text(encoding="utf-8")
     require(
         status_template,
         (
@@ -81,7 +80,7 @@ def validate_static_contract() -> None:
             "Current STEP checkpoint:",
             "Schema/migration version:",
             "Repository/worktree checkpoint reviewed:",
-            "Result: PASS / STALE / BLOCKED",
+            "Result: {{PASS_STALE_OR_BLOCKED}}",
             "| Interface | Authority | Producer | Consumers | Version/hash | Compatibility |",
         ),
         PLANNER / "assets" / "STATUS_TEMPLATE.md",
@@ -96,6 +95,9 @@ def validate_static_contract() -> None:
         ),
         PLANNER / "assets" / "STEP_TEMPLATE.md",
     )
+    if not EXECUTOR_HANDOFF.is_file():
+        return False
+    executor = EXECUTOR_HANDOFF.read_text(encoding="utf-8")
     require(
         executor,
         (
@@ -106,6 +108,7 @@ def validate_static_contract() -> None:
         ),
         EXECUTOR_HANDOFF,
     )
+    return True
 
 
 def validate_scenarios() -> None:
@@ -154,9 +157,13 @@ def validate_scenarios() -> None:
 
 
 def main() -> int:
-    validate_static_contract()
+    executor_checked = validate_static_contract()
     validate_scenarios()
-    print("PASS: planner and executor satisfy handoff schema version 1")
+    if executor_checked:
+        print("PASS: planner and executor satisfy handoff schema version 1")
+    else:
+        print("PASS: planner handoff schema version 1 is internally consistent")
+        print("NOT_APPLICABLE: adjacent deliver-code-change integration was not installed")
     return 0
 
 

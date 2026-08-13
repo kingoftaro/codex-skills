@@ -1,6 +1,6 @@
 ---
 name: phase-step-planner
-description: Audit and split a large software phase into bounded, independently verifiable implementation steps with a single evidence-backed status snapshot and safe handoff prompts. Use when planning a multi-stage phase, when a phase is too large for one model context, when work will be handed to a lower-capability model, when creating or updating phase README/STEP/STATUS Markdown files, or before continuing a partially implemented phase after another model or session.
+description: Audit and split a large software phase into bounded, independently verifiable implementation steps with a single evidence-backed status snapshot and safe handoff prompts. Use when planning a multi-stage phase, reviewing or re-reviewing a completed phase step, when a phase is too large for one model context, when work will be handed to a lower-capability model, when creating or updating phase README/STEP/STATUS Markdown files, or before continuing a partially implemented phase after another model or session.
 ---
 
 # Phase Step Planner
@@ -12,7 +12,7 @@ Turn a large phase into repository-backed, evidence-driven handoffs. Never rely 
 1. **Plan a new phase**: inspect the project rules and accepted predecessor state, create the dependency map, and detail only the first executable step.
 2. **Resume an existing phase**: audit code, migrations, tests, Git state, and retained evidence before writing status or steps.
 3. **Phase still being edited elsewhere**: do not audit mutable files, generate status, or rewrite the phase. Limit work to stable global templates and wait for an explicit handoff.
-4. **Accept a completed step**: verify evidence first, then update the single phase status file and detail the next step.
+4. **Accept a completed step**: verify evidence first, inspect document, code, and Git synchronization, report any pending closure work, then advance only from a consistent state.
 
 ## Establish authority and boundaries
 
@@ -36,6 +36,8 @@ For an existing phase, derive status from the repository rather than the plan:
 Do not mark a step complete merely because its files exist or tests are green. Check whether the required failure paths and side-effect boundaries are covered.
 
 ## Control repeated repair loops
+
+Immediately before creating, detailing, or materially rewriting an executable STEP, read `references/CONSISTENCY_REVIEW.md` and apply its `PASS`, `STALE`, and `BLOCKED` gate. Read `references/FAILURE_PATTERNS.md` only for patterns relevant to the current phase or review finding.
 
 For every review finding, classify it as a latent defect, a repair-introduced regression, or an environment/evidence contradiction. Record the failing reproduction, governing invariant, regression guard, affected artifacts, and closure evidence in the phase's existing issue table or STATUS; do not create a second status file.
 
@@ -68,7 +70,7 @@ Use the assets as output templates:
 
 Keep project-specific paths, commands, architecture, and acceptance thresholds in the project artifacts, not in this Skill.
 
-When the failure resembles hidden shared state, test-order dependence, accidental OS actions, stale plans, or false-green acceptance, read `references/FAILURE_PATTERNS.md` and incorporate the relevant guardrails without copying the incident narrative into every step.
+When the failure resembles hidden shared state, test-order dependence, accidental OS actions, stale plans, or false-green acceptance, incorporate the relevant guardrails from `references/FAILURE_PATTERNS.md` without copying the incident narrative into every step.
 
 ## Prepare an implementation handoff
 
@@ -83,6 +85,8 @@ Require a pre-code rehearsal that lists file touchpoints, traces the call chain 
 
 Never authorize the model to complete the whole phase, update a passing report before evidence exists, or silently expand the allowed file scope.
 
+For an active handoff, compute the STEP digest with `scripts/validate_phase_artifacts.py --digest <STEP_PATH>`, record it in `STATUS.md`, then run `scripts/validate_phase_artifacts.py <PHASE_DIRECTORY>`. Do not hand off a STEP when validation fails. After changing the bundled handoff schema, templates, validator, or executor contract, run `scripts/validate_handoff_contract.py`; when `deliver-code-change` is installed adjacent to this Skill, that command also validates the cross-Skill contract.
+
 ## Accept and advance
 
 After implementation:
@@ -93,7 +97,11 @@ After implementation:
 4. verify that no forbidden external effect occurred;
 5. review contracts, migrations, privacy, rollback, and failure behavior in proportion to risk;
 6. run the repository's evidence-consistency checker when available;
-7. update acceptance documents and `STATUS.md` with actual commands, results, risks, file scope, and Git checkpoint only after verification;
-8. detail the next step from the new repository state.
+7. when the review or re-review passes, compare every affected phase index, STEP, acceptance record, issue or risk entry, and `STATUS.md` with the final code and evidence, then inspect `git status`, untracked files, and the final diff;
+8. if documents, code, or Git state are not synchronized, tell the user exactly what is stale, modified, untracked, or uncommitted, why it matters, and the smallest recommended update or commit action;
+9. update documents or create a commit only when the user request, repository rules, or active workflow already authorizes that action; after an authorized change, rerun the affected consistency and Git checks;
+10. record the observed commit or explicit uncommitted disposition in the handoff, then detail the next step only when its inputs are mutually consistent.
+
+`PASS` describes the review evidence; it does not silently grant authority to edit, commit, or push. Do not stage unrelated user changes. A dirty but internally consistent worktree may retain `PASS` when reported exactly. If the closure check reveals facts that contradict the review, change the handoff to `STALE` or `BLOCKED`; do not leave an executable `PASS` in place while only warning the user.
 
 Keep executable guarantees in code, database constraints, tests, and validation scripts. Markdown records the contract and evidence; it does not enforce behavior by itself.

@@ -9,13 +9,26 @@
 - Branch: `{{BRANCH}}`
 - Verified Git checkpoint: `{{COMMIT_OR_UNCOMMITTED_EXPLANATION}}`
 - Worktree state: {{CLEAN_OR_SUMMARY}}
+- Post-review synchronization check: {{DOCUMENT_CODE_GIT_STATE_AND_RECOMMENDED_ACTION}}
 
 ## Position
 
 - Phase state: not started / in progress / development complete / accepted / release blocked
-- Current executable step: `{{CURRENT_STEP}}`
 - Last accepted step: `{{LAST_ACCEPTED_STEP}}`
 - Next outlined step: `{{NEXT_STEP}}`
+
+## Current handoff
+
+- Handoff schema version: 1
+- Current executable step: `{{CURRENT_STEP_DOCUMENT}}`
+- Current STEP checkpoint: `sha256:{{CURRENT_STEP_SHA256}}`
+- Repository/worktree checkpoint reviewed: {{REVIEWED_REPOSITORY_CHECKPOINT}}
+- Result: {{PASS_STALE_OR_BLOCKED}}
+
+Only `PASS` is executable. Recompute the STEP checkpoint after every material
+STEP edit and repeat the consistency review when code, documents, or the
+reviewed worktree changes. The reviewed checkpoint may be a commit or an exact
+dirty-worktree description, but STATUS and STEP must record the same value.
 
 ## Verified capabilities
 
@@ -33,6 +46,10 @@
 - Authoritative fact source: {{FACT_SOURCE}}
 - Stable interfaces: {{INTERFACES}}
 - Active compatibility constraints: {{COMPATIBILITY}}
+
+| Interface | Authority | Producer | Consumers | Version/hash | Compatibility |
+|---|---|---|---|---|---|
+| {{INTERFACE}} | `{{AUTHORITY_PATH}}` | {{PRODUCER}} | {{CONSUMERS}} | {{VERSION_OR_HASH}} | {{COMPATIBILITY_RULE}} |
 
 ## Validation baseline
 

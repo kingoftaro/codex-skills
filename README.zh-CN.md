@@ -49,7 +49,6 @@ phase-step-planner
 codex-skills/
 +-- deliver-code-change/
 |   +-- SKILL.md
-|   +-- README.md
 |   +-- agents/
 |   +-- references/
 |   `-- scripts/
@@ -61,7 +60,7 @@ codex-skills/
     `-- scripts/
 ```
 
-每个 skill 都是自包含的。`SKILL.md` 是入口文件；支持性参考资料仅在满足对应条件时加载。
+每个 skill 的核心职责都是自包含的：`deliver-code-change` 无需规划器也能执行独立的有界变更，`phase-step-planner` 无需执行器也能完成阶段规划与复审。当两个目录相邻安装时，规划器的 handoff validator 还会检查双方共享的 schema 契约。`SKILL.md` 是每个 skill 的入口文件；支持性参考资料仅在满足对应条件时加载。
 
 ## 安装
 
@@ -117,7 +116,7 @@ python .\phase-step-planner\scripts\validate_phase_artifacts.py <阶段目录>
 python .\phase-step-planner\scripts\validate_handoff_contract.py
 ```
 
-这些脚本只使用 Python 标准库，不会安装依赖或访问网络。
+当 `deliver-code-change` 与规划器相邻安装时，该命令会验证双方的集成契约；否则只验证规划器自身契约，并将执行器检查报告为 `NOT_APPLICABLE`。这些脚本只使用 Python 标准库，不会安装依赖或访问网络。
 
 ## 维护仓库
 

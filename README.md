@@ -49,7 +49,6 @@ Use `deliver-code-change` directly for a standalone, well-bounded change. Use `p
 codex-skills/
 +-- deliver-code-change/
 |   +-- SKILL.md
-|   +-- README.md
 |   +-- agents/
 |   +-- references/
 |   `-- scripts/
@@ -61,7 +60,7 @@ codex-skills/
     `-- scripts/
 ```
 
-Each skill is self-contained. `SKILL.md` is the entry point; supporting references are loaded only when their conditions apply.
+Each skill is self-contained for its primary responsibility. `deliver-code-change` can execute a standalone bounded change without the planner, and `phase-step-planner` can plan and review phases without the executor. When both directories are adjacent, the planner's handoff validator also checks their shared schema contract. `SKILL.md` is each skill's entry point; supporting references are loaded only when their conditions apply.
 
 ## Installation
 
@@ -117,7 +116,7 @@ Validate the planner/executor handoff contract:
 python .\phase-step-planner\scripts\validate_handoff_contract.py
 ```
 
-These scripts use the Python standard library and do not install dependencies or access the network.
+When `deliver-code-change` is installed next to the planner, this command validates both sides of the integration. Otherwise it validates the planner contract and reports the executor check as `NOT_APPLICABLE`. These scripts use the Python standard library and do not install dependencies or access the network.
 
 ## Maintaining the repository
 

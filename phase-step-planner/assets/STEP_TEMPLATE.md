@@ -1,5 +1,14 @@
 # {{STEP_ID}}: {{STEP_NAME}}
 
+## Handoff contract
+
+- Handoff schema version: 1
+- Reviewed repository/worktree checkpoint: {{REVIEWED_REPOSITORY_CHECKPOINT}}
+- Pre-step consistency review: PASS
+
+The reviewed checkpoint may be a commit or an exact dirty-worktree description;
+it must match `STATUS.md`.
+
 ## One outcome
 
 {{SINGLE_VERIFIABLE_OUTCOME}}
@@ -13,7 +22,7 @@
 - Required predecessor: {{PREDECESSOR}}
 - Current schema/migration: {{SCHEMA_BASELINE}}
 - Stable interfaces: {{INTERFACE_BASELINE}}
-- Baseline command and result: `{{BASELINE_COMMAND}}` → {{ACTUAL_RESULT}}
+- Baseline command and result: `{{BASELINE_COMMAND}}` -> {{ACTUAL_RESULT}}
 - Git/worktree checkpoint: {{GIT_CHECKPOINT}}
 
 ## File boundary

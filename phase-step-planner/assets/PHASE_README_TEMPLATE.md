@@ -29,7 +29,7 @@ This file describes order and dependencies. It does not claim that a step is com
 
 ## Progression rule
 
-Only the current detailed step may be implemented. Verify it and update `STATUS.md` before detailing or starting its successor. If repository reality contradicts a step, revise the step from evidence rather than improvising in code.
+Only the current detailed step may be implemented. After review, compare affected documents with the final code and evidence, inspect Git state, and report stale or uncommitted work with a recommended action. Update or commit only with existing authority, and do not detail a successor from contradictory inputs. If repository reality contradicts a step, revise the step from evidence rather than improvising in code.
 
 ## Final phase gates
 

@@ -42,6 +42,36 @@ consistent, evidence-backed interpretation. Update stale `STATUS.md` facts from
 repository evidence before marking `PASS`, then record the review timestamp,
 repository/worktree checkpoint, sources, comparisons, and result.
 
+## Check closure after a passing review
+
+Apply this closure to an initial review and every re-review that ends in
+`PASS`:
+
+1. Compare the final code and evidence with every affected phase index, STEP,
+   acceptance record, issue or risk entry, and `STATUS.md`. Inspect state,
+   completion, checkpoint, command, result, and open-risk fields for stale or
+   contradictory claims.
+2. Inspect `git status`, untracked files, and the final diff. Separate unrelated
+   user work and identify accepted code or document changes that remain
+   modified, untracked, or uncommitted.
+3. If anything is not synchronized, report the exact files or state fields,
+   the mismatch or pending Git disposition, its effect on the handoff, and the
+   smallest recommended update or commit action.
+4. Update documents or create a commit only when that action is already
+   authorized by the user request, repository rules, or active workflow.
+   `PASS` alone grants neither edit nor commit authority, and commit authority
+   does not grant push authority. After an authorized change, rerun the
+   affected consistency and Git checks.
+5. Record the observed commit or explicit uncommitted disposition in the
+   handoff. A dirty worktree may be reported without changing the review result,
+   but do not prepare a successor STEP from stale or contradictory inputs.
+
+An uncommitted but internally consistent worktree may retain a review result of
+`PASS` when its exact disposition is reported. If the closure check discovers
+that code, STEP, STATUS, or retained evidence contradicts the facts used by the
+review, change the handoff result to `STALE` or `BLOCKED`; do not expose it as an
+executable `PASS` while merely warning about the contradiction.
+
 Mark `STALE` when repository evidence is internally consistent and the intended
 contract is clear, but `STATUS.md`, the phase index, predecessor records, or
 retained evidence has not been synchronized with it. Update only the stale
