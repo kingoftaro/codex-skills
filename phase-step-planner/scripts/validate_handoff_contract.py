@@ -42,12 +42,33 @@ def expect_rejected(action: Callable[[], object], message: str) -> None:
         raise AssertionError(f"expected rejection containing {message!r}")
 
 
-def step_text(schema: str = "1", baseline: str = "schema-7", review: str = "git:abc") -> str:
+def step_text(
+    schema: str = "1",
+    baseline: str = "schema-7",
+    checkpoint: str = "git:abc",
+    review: str = "PASS",
+) -> str:
     return (
         "# STEP_01: example\n\n"
+        "## Handoff contract\n\n"
         f"- Handoff schema version: {schema}\n"
         f"- Current schema/migration: {baseline}\n"
-        f"- Reviewed repository/worktree checkpoint: {review}\n"
+        f"- Reviewed repository/worktree checkpoint: {checkpoint}\n"
+        f"- Pre-step consistency review: {review}\n"
+        "\n## One outcome\n\n- Deliver one verified example.\n"
+        "\n## Non-goals\n\n- Do not change unrelated behavior.\n"
+        "\n## Entry conditions and verified baseline\n\n- Baseline evidence is current.\n"
+        "\n## File boundary\n\n- Modify only `example.py`.\n"
+        "\n## Contracts and invariants\n\n- Preserve the example contract.\n"
+        "\n## Side-effect policy\n\n- No external effects are allowed.\n"
+        "\n## Implementation order\n\n1. Implement.\n2. Verify.\n"
+        "\n## Required pre-code rehearsal\n\n- Trace the call path.\n"
+        "\n## Acceptance\n\n"
+        "### Normal cases\n\n- The example succeeds.\n"
+        "\n### Failure and adversarial cases\n\n- Invalid input is rejected.\n"
+        "\n### Validation commands\n\n- Run `python -m unittest`.\n"
+        "\n## Stop and degrade\n\n- Stop when scope is insufficient.\n"
+        "\n## Deliverables\n\n- Code and evidence.\n"
     )
 
 
@@ -56,11 +77,13 @@ def status_text(
     *,
     schema: str = "1",
     result: str = "PASS",
+    phase_state: str = "in progress",
     baseline: str = "schema-7",
     review: str = "git:abc",
     step: str = "STEP_01.md",
 ) -> str:
     return (
+        f"- Phase state: {phase_state}\n"
         f"- Handoff schema version: {schema}\n"
         f"- Current executable step: `{step}`\n"
         f"- Current STEP checkpoint: `{checkpoint}`\n"
@@ -76,6 +99,7 @@ def validate_static_contract() -> bool:
     require(
         status_template,
         (
+            "Phase state:",
             "Handoff schema version: 1",
             "Current STEP checkpoint:",
             "Schema/migration version:",
@@ -103,6 +127,8 @@ def validate_static_contract() -> bool:
         (
             "handoff schema version `1`",
             "`STALE` and `BLOCKED` are not executable",
+            "`development complete` and `accepted` are not executable",
+            "unresolved bundled template placeholders",
             "same schema/migration baseline",
             "same schema/migration baseline and reviewed repository/worktree checkpoint",
         ),
@@ -123,6 +149,18 @@ def validate_scenarios() -> None:
         status.write_text(status_text(digest), encoding="utf-8")
         validator.validate(phase)
 
+        incomplete = step_text().replace(
+            "\n## File boundary\n\n- Modify only `example.py`.\n",
+            "",
+        )
+        step.write_text(incomplete, encoding="utf-8")
+        incomplete_digest = validator.sha256(step)
+        status.write_text(status_text(incomplete_digest), encoding="utf-8")
+        expect_rejected(lambda: validator.validate(phase), "## File boundary section")
+
+        step.write_text(step_text(), encoding="utf-8")
+        digest = validator.sha256(step)
+
         status.write_text(status_text(digest, schema="2"), encoding="utf-8")
         expect_rejected(lambda: validator.validate(phase), "unsupported or mixed handoff schema")
 
@@ -131,6 +169,32 @@ def validate_scenarios() -> None:
 
         status.write_text(status_text(digest, result="BLOCKED"), encoding="utf-8")
         expect_rejected(lambda: validator.validate(phase), "not executable: BLOCKED")
+
+        status.write_text(status_text(digest, phase_state="accepted"), encoding="utf-8")
+        expect_rejected(lambda: validator.validate(phase), "phase state is not executable: accepted")
+
+        status.write_text(status_text(digest, phase_state="development complete"), encoding="utf-8")
+        expect_rejected(
+            lambda: validator.validate(phase),
+            "phase state is not executable: development complete",
+        )
+
+        step.write_text(step_text(review="BLOCKED"), encoding="utf-8")
+        blocked_review_digest = validator.sha256(step)
+        status.write_text(status_text(blocked_review_digest), encoding="utf-8")
+        expect_rejected(
+            lambda: validator.validate(phase),
+            "STEP pre-step consistency review is not executable: BLOCKED",
+        )
+
+        step.write_text(step_text(), encoding="utf-8")
+        digest = validator.sha256(step)
+
+        status.write_text(
+            status_text(digest, baseline="{{SCHEMA_VERSION}}"),
+            encoding="utf-8",
+        )
+        expect_rejected(lambda: validator.validate(phase), "unresolved bundled template placeholders")
 
         status.write_text(status_text(digest, baseline="schema-8"), encoding="utf-8")
         expect_rejected(lambda: validator.validate(phase), "baseline mismatch")

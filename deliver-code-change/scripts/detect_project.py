@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import shutil
+import sys
 from pathlib import Path
 
 
@@ -19,6 +20,7 @@ LANGUAGE_MARKERS = {
 
 TOOL_NAMES = (
     "git", "python", "python3", "pytest", "ruff", "mypy", "pyright",
+    "uv", "poetry", "tox", "nox",
     "node", "npm", "pnpm", "yarn", "bun", "tsc", "eslint",
     "go", "gofmt", "cargo", "rustc",
 )
@@ -62,6 +64,14 @@ def detect_package_manager(root: Path) -> str | None:
     return None
 
 
+def detect_tools() -> dict[str, str | None]:
+    tools = {name: shutil.which(name) for name in TOOL_NAMES}
+    current_python = Path(sys.executable)
+    if tools["python"] is None and current_python.is_file():
+        tools["python"] = str(current_python.resolve())
+    return tools
+
+
 def inspect(root: Path) -> dict[str, object]:
     if not root.exists():
         raise FileNotFoundError(f"project root does not exist: {root}")
@@ -102,7 +112,7 @@ def inspect(root: Path) -> dict[str, object]:
         "ci": ci_markers,
         "instructions": instruction_files,
         "openspec": (root / "openspec").exists(),
-        "tools": {name: shutil.which(name) for name in TOOL_NAMES},
+        "tools": detect_tools(),
     }
 
 

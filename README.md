@@ -98,16 +98,28 @@ For a phase handoff, provide the implementation model with the applicable projec
 
 ## Local validation
 
-Validate the structure of `deliver-code-change`:
+The scripts require Python 3.10 or newer and use only the standard library. The examples below assume `python` resolves to the selected interpreter; otherwise replace it with that interpreter's absolute path.
+
+Validate the structure of both skills:
 
 ```powershell
 python .\deliver-code-change\scripts\validate_skill.py .\deliver-code-change
+python .\deliver-code-change\scripts\validate_skill.py .\phase-step-planner
 ```
 
-Validate a generated phase handoff:
+Validate the structural completeness, cross-document facts, and STEP digest of a generated phase handoff:
 
 ```powershell
 python .\phase-step-planner\scripts\validate_phase_artifacts.py <phase-directory>
+```
+
+This validator confirms that STATUS and STEP record the same reviewed checkpoint; it does not inspect the live Git worktree. Compare the recorded checkpoint with the repository before implementation.
+
+Run both regression test suites:
+
+```powershell
+python -m unittest discover .\deliver-code-change\scripts -p "test_*.py"
+python -m unittest discover .\phase-step-planner\scripts -p "test_*.py"
 ```
 
 Validate the planner/executor handoff contract:
@@ -116,7 +128,7 @@ Validate the planner/executor handoff contract:
 python .\phase-step-planner\scripts\validate_handoff_contract.py
 ```
 
-When `deliver-code-change` is installed next to the planner, this command validates both sides of the integration. Otherwise it validates the planner contract and reports the executor check as `NOT_APPLICABLE`. These scripts use the Python standard library and do not install dependencies or access the network.
+When `deliver-code-change` is installed next to the planner, this command validates both sides of the integration. Otherwise it validates the planner contract and reports the executor check as `NOT_APPLICABLE`. The GitHub Actions workflow runs the same gates on Python 3.10 and 3.13. None of the validation scripts installs dependencies or accesses the network.
 
 ## Maintaining the repository
 

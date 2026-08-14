@@ -85,7 +85,7 @@ Require a pre-code rehearsal that lists file touchpoints, traces the call chain 
 
 Never authorize the model to complete the whole phase, update a passing report before evidence exists, or silently expand the allowed file scope.
 
-For an active handoff, compute the STEP digest with `scripts/validate_phase_artifacts.py --digest <STEP_PATH>`, record it in `STATUS.md`, then run `scripts/validate_phase_artifacts.py <PHASE_DIRECTORY>`. Do not hand off a STEP when validation fails. After changing the bundled handoff schema, templates, validator, or executor contract, run `scripts/validate_handoff_contract.py`; when `deliver-code-change` is installed adjacent to this Skill, that command also validates the cross-Skill contract.
+For an active handoff, compute the STEP digest with `scripts/validate_phase_artifacts.py --digest <STEP_PATH>`, record it in `STATUS.md`, then run `scripts/validate_phase_artifacts.py <PHASE_DIRECTORY>`. The validator rejects incomplete STEP structure, non-executable phase states, a non-PASS STEP review, unresolved bundled template placeholders, and mismatched handoff facts. It checks that STATUS and STEP describe the same reviewed checkpoint; it does not inspect the live Git worktree, so verify that checkpoint separately before handoff. Do not hand off a STEP when validation fails. After changing the bundled handoff schema, templates, validator, or executor contract, run `scripts/validate_handoff_contract.py`; when `deliver-code-change` is installed adjacent to this Skill, that command also validates the cross-Skill contract.
 
 ## Accept and advance
 

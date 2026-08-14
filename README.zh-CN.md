@@ -98,16 +98,28 @@ Copy-Item -Recurse .\phase-step-planner "$env:USERPROFILE\.codex\skills\"
 
 ## 本地验证
 
-验证 `deliver-code-change` 的结构：
+这些脚本要求 Python 3.10 或更高版本，并且只使用标准库。以下示例假定 `python` 能解析到选定的解释器；否则请用该解释器的绝对路径替换它。
+
+验证两个 skill 的结构：
 
 ```powershell
 python .\deliver-code-change\scripts\validate_skill.py .\deliver-code-change
+python .\deliver-code-change\scripts\validate_skill.py .\phase-step-planner
 ```
 
-验证生成的阶段交接文件：
+验证生成的阶段交接文件的结构完整性、跨文档事实和 STEP 摘要：
 
 ```powershell
 python .\phase-step-planner\scripts\validate_phase_artifacts.py <阶段目录>
+```
+
+该 validator 会确认 STATUS 和 STEP 记录了相同的已审查 checkpoint，但不会检查实时 Git 工作树。实施前仍需将记录值与仓库现状进行比较。
+
+运行两个回归测试套件：
+
+```powershell
+python -m unittest discover .\deliver-code-change\scripts -p "test_*.py"
+python -m unittest discover .\phase-step-planner\scripts -p "test_*.py"
 ```
 
 验证规划器与实施器之间的交接契约：
@@ -116,7 +128,7 @@ python .\phase-step-planner\scripts\validate_phase_artifacts.py <阶段目录>
 python .\phase-step-planner\scripts\validate_handoff_contract.py
 ```
 
-当 `deliver-code-change` 与规划器相邻安装时，该命令会验证双方的集成契约；否则只验证规划器自身契约，并将执行器检查报告为 `NOT_APPLICABLE`。这些脚本只使用 Python 标准库，不会安装依赖或访问网络。
+当 `deliver-code-change` 与规划器相邻安装时，该命令会验证双方的集成契约；否则只验证规划器自身契约，并将执行器检查报告为 `NOT_APPLICABLE`。GitHub Actions 工作流会在 Python 3.10 和 3.13 上运行同样的检查。所有验证脚本都不会安装依赖或访问网络。
 
 ## 维护仓库
 

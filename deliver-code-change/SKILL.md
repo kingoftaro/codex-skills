@@ -108,7 +108,7 @@ Commit only when the user explicitly requested a commit or the active workflow c
 
 Default to no pipeline artifacts. Never create a second task-state file when an applicable phase `STATUS.md` exists. Use persistent state only for a standalone, long or interruption-prone change when the surrounding product does not already provide reliable task state.
 
-When persistence is justified, read [references/recovery.md](references/recovery.md) and use `scripts/manage_state.py` with an explicit state-file path. Mark completion by writing a completed state; do not delete state automatically.
+When persistence is justified, read [references/recovery.md](references/recovery.md) and use `scripts/manage_state.py` with an explicit state-file path. Mark completion by writing a completed state; completed state is immutable, so initialize a new state file for later work rather than reopening it. Do not delete state automatically.
 
 ## Non-negotiable rules
 

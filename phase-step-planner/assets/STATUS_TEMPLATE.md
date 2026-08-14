@@ -1,6 +1,6 @@
 # Phase {{PHASE_ID}} current status
 
-> This is the phase's single verified snapshot. Update it only from repository evidence after acceptance; do not use it as a speculative plan.
+> This is the phase's single verified snapshot. Update it only from repository evidence at planning, review, or acceptance checkpoints; do not use it as a speculative plan.
 
 ## Snapshot identity
 
@@ -13,11 +13,15 @@
 
 ## Position
 
-- Phase state: not started / in progress / development complete / accepted / release blocked
+- Phase state: {{PHASE_STATE}}
 - Last accepted step: `{{LAST_ACCEPTED_STEP}}`
 - Next outlined step: `{{NEXT_STEP}}`
 
 ## Current handoff
+
+This section is executable only for `not started`, `in progress`, or an
+intentional `release blocked` remediation. `development complete` and
+`accepted` are not executable phase states.
 
 - Handoff schema version: 1
 - Current executable step: `{{CURRENT_STEP_DOCUMENT}}`
@@ -29,6 +33,8 @@ Only `PASS` is executable. Recompute the STEP checkpoint after every material
 STEP edit and repeat the consistency review when code, documents, or the
 reviewed worktree changes. The reviewed checkpoint may be a commit or an exact
 dirty-worktree description, but STATUS and STEP must record the same value.
+The bundled validator checks that the two documents agree; the reviewer must
+still compare that recorded value with the live repository and worktree.
 
 ## Verified capabilities
 

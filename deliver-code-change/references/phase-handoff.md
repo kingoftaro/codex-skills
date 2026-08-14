@@ -6,11 +6,11 @@ Use this mode only when a phase planner has produced an applicable `STATUS.md` a
 
 1. Read applicable user instructions and `AGENTS.md` files first.
 2. Require handoff schema version `1` in both `STATUS.md` and the current STEP. Stop on an unsupported or mixed version.
-3. Confirm that `STATUS.md` identifies exactly one current executable STEP, records a `PASS` consistency result, and is not terminal. `STALE` and `BLOCKED` are not executable.
+3. Confirm that `STATUS.md` identifies exactly one current executable STEP, records a `PASS` consistency result, and is not terminal. `STALE` and `BLOCKED` are not executable. Phase states `development complete` and `accepted` are not executable; `release blocked` is executable only when STATUS intentionally identifies a remediation STEP.
 4. Verify that the STEP path is relative, exists inside the phase directory, and matches the detailed step in the phase index when present.
 5. Verify the recorded `sha256:` checkpoint against the STEP's current bytes. Use `phase-step-planner/scripts/validate_phase_artifacts.py <phase-dir>` when that Skill is available; otherwise compute the digest with an existing local tool.
-6. Confirm that STATUS and STEP record the same schema/migration baseline and reviewed repository/worktree checkpoint.
-7. Stop before editing when validation fails, the worktree contradicts the recorded checkpoint, or the requested work exceeds the STEP.
+6. Confirm that STATUS and STEP record the same schema/migration baseline and reviewed repository/worktree checkpoint, the STEP records `Pre-step consistency review: PASS`, and neither file contains unresolved bundled template placeholders.
+7. Treat the bundled validator as a structure, digest, and cross-document consistency check. Independently inspect Git and stop before editing when the live repository or worktree contradicts the recorded checkpoint, or when the requested work exceeds the STEP.
 
 Do not silently repair phase artifacts while acting as the implementation executor.
 

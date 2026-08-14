@@ -8,10 +8,24 @@
       "async": false
     },
     {
+      "qualified_name": "detect_project.detect_tools",
+      "kind": "function",
+      "parameters": [],
+      "return_annotation": "dict[str, str | None]",
+      "async": false
+    },
+    {
       "qualified_name": "manage_state.timestamp",
       "kind": "function",
       "parameters": [],
       "return_annotation": "str",
+      "async": false
+    },
+    {
+      "qualified_name": "manage_state.validate_state",
+      "kind": "function",
+      "parameters": ["data"],
+      "return_annotation": "dict[str, Any]",
       "async": false
     },
     {

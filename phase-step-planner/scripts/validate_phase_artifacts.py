@@ -21,6 +21,10 @@ STEP_BASELINE_PATTERN = re.compile(
     r"^- Current schema/migration:\s*(.+?)\s*$", re.MULTILINE
 )
 REVIEW_RESULT_PATTERN = re.compile(r"^- Result:\s*(PASS|STALE|BLOCKED)\s*$", re.MULTILINE)
+PHASE_STATE_PATTERN = re.compile(r"^- Phase state:\s*(.+?)\s*$", re.MULTILINE)
+STEP_REVIEW_RESULT_PATTERN = re.compile(
+    r"^- Pre-step consistency review:\s*(PASS|STALE|BLOCKED)\s*$", re.MULTILINE
+)
 STATUS_REVIEW_CHECKPOINT_PATTERN = re.compile(
     r"^- Repository/worktree checkpoint reviewed:\s*(.+?)\s*$", re.MULTILINE
 )
@@ -28,6 +32,35 @@ STEP_REVIEW_CHECKPOINT_PATTERN = re.compile(
     r"^- Reviewed repository/worktree checkpoint:\s*(.+?)\s*$", re.MULTILINE
 )
 SUPPORTED_SCHEMA = "1"
+SUPPORTED_PHASE_STATES = {
+    "not started",
+    "in progress",
+    "development complete",
+    "accepted",
+    "release blocked",
+}
+NON_EXECUTABLE_PHASE_STATES = {"development complete", "accepted"}
+PLACEHOLDER_PATTERN = re.compile(r"\{\{[A-Z][A-Z0-9_]*\}\}")
+TEMPLATE_NAMES = ("STATUS_TEMPLATE.md", "STEP_TEMPLATE.md")
+REQUIRED_STEP_SECTIONS = (
+    "Handoff contract",
+    "One outcome",
+    "Non-goals",
+    "Entry conditions and verified baseline",
+    "File boundary",
+    "Contracts and invariants",
+    "Side-effect policy",
+    "Implementation order",
+    "Required pre-code rehearsal",
+    "Acceptance",
+    "Stop and degrade",
+    "Deliverables",
+)
+REQUIRED_ACCEPTANCE_SECTIONS = (
+    "Normal cases",
+    "Failure and adversarial cases",
+    "Validation commands",
+)
 
 
 def sha256(path: Path) -> str:
@@ -39,6 +72,58 @@ def single_match(pattern: re.Pattern[str], text: str, label: str) -> str:
     if len(matches) != 1:
         raise ValueError(f"STATUS.md must contain exactly one valid {label}; found {len(matches)}")
     return matches[0]
+
+
+def bundled_template_placeholders() -> set[str]:
+    assets = Path(__file__).resolve().parent.parent / "assets"
+    placeholders: set[str] = set()
+    for name in TEMPLATE_NAMES:
+        template = assets / name
+        if not template.is_file():
+            raise ValueError(f"bundled handoff template is missing: {template}")
+        placeholders.update(PLACEHOLDER_PATTERN.findall(template.read_text(encoding="utf-8")))
+    return placeholders
+
+
+def reject_unresolved_placeholders(text: str, label: str) -> None:
+    unresolved = sorted(set(PLACEHOLDER_PATTERN.findall(text)) & bundled_template_placeholders())
+    if unresolved:
+        raise ValueError(
+            f"{label} contains unresolved bundled template placeholders: "
+            + ", ".join(unresolved)
+        )
+
+
+def section_body(text: str, level: int, title: str) -> str:
+    marker = "#" * level
+    pattern = re.compile(
+        rf"^{re.escape(marker)}\s+{re.escape(title)}\s*$"
+        rf"(?P<body>.*?)(?=^{'#' * level}\s+|\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+    matches = list(pattern.finditer(text))
+    if len(matches) != 1:
+        raise ValueError(
+            f"current STEP must contain exactly one {marker} {title} section; "
+            f"found {len(matches)}"
+        )
+    body = matches[0].group("body").strip()
+    substantive_lines = [
+        line.strip()
+        for line in body.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    if not substantive_lines:
+        raise ValueError(f"current STEP section {marker} {title} has no content")
+    return body
+
+
+def validate_step_structure(text: str) -> None:
+    for title in REQUIRED_STEP_SECTIONS:
+        section_body(text, 2, title)
+    acceptance = section_body(text, 2, "Acceptance")
+    for title in REQUIRED_ACCEPTANCE_SECTIONS:
+        section_body(acceptance, 3, title)
 
 
 def resolve_inside(root: Path, relative: str) -> Path:
@@ -61,10 +146,18 @@ def validate(phase_dir: Path) -> tuple[Path, str]:
     if not status.is_file():
         raise ValueError(f"STATUS.md is missing: {status}")
     text = status.read_text(encoding="utf-8")
+    reject_unresolved_placeholders(text, "STATUS.md")
+    phase_state = single_match(PHASE_STATE_PATTERN, text, "Phase state")
+    if phase_state not in SUPPORTED_PHASE_STATES:
+        raise ValueError(f"unsupported phase state: {phase_state}")
+    if phase_state in NON_EXECUTABLE_PHASE_STATES:
+        raise ValueError(f"phase state is not executable: {phase_state}")
     relative = single_match(STEP_PATTERN, text, "Current executable step")
     expected = single_match(CHECKPOINT_PATTERN, text, "Current STEP checkpoint")
     step = resolve_inside(root, relative)
     step_text = step.read_text(encoding="utf-8")
+    reject_unresolved_placeholders(step_text, "current STEP")
+    validate_step_structure(step_text)
 
     status_schema = single_match(SCHEMA_PATTERN, text, "Handoff schema version")
     step_schema = single_match(SCHEMA_PATTERN, step_text, "Handoff schema version in STEP")
@@ -77,6 +170,14 @@ def validate(phase_dir: Path) -> tuple[Path, str]:
     result = single_match(REVIEW_RESULT_PATTERN, text, "pre-step consistency Result")
     if result != "PASS":
         raise ValueError(f"pre-step consistency Result is not executable: {result}")
+
+    step_review = single_match(
+        STEP_REVIEW_RESULT_PATTERN,
+        step_text,
+        "pre-step consistency review in STEP",
+    )
+    if step_review != "PASS":
+        raise ValueError(f"STEP pre-step consistency review is not executable: {step_review}")
 
     status_baseline = single_match(
         STATUS_BASELINE_PATTERN, text, "Schema/migration version"
@@ -126,7 +227,7 @@ def main() -> int:
             print(sha256(step))
         else:
             step, checkpoint = validate(Path(args.phase_dir))
-            print(f"PASS: {step} matches {checkpoint}")
+            print(f"PASS: {step} has a complete handoff structure and matches {checkpoint}")
     except (OSError, UnicodeError, ValueError) as exc:
         parser.error(str(exc))
     return 0
