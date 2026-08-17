@@ -1,88 +1,47 @@
 # Phase {{PHASE_ID}} current status
 
-> This is the phase's single verified snapshot. Update it only from repository evidence at planning, review, or acceptance checkpoints; do not use it as a speculative plan.
+> This is the phase's single machine-readable handoff state. Edit the review
+> result and human evidence; let `--prepare` generate digests and Git facts.
 
-## Snapshot identity
+```json phase-handoff
+{
+  "handoff_schema": 2,
+  "phase_state": "{{PHASE_STATE}}",
+  "current_step": "{{CURRENT_STEP_DOCUMENT}}",
+  "step_sha256": "AUTO",
+  "contract_registry": "README.md",
+  "contract_registry_sha256": "AUTO",
+  "review_result": "{{PASS_STALE_OR_BLOCKED}}",
+  "repository": {
+    "mode": "git",
+    "head": "AUTO",
+    "worktree_sha256": "AUTO"
+  }
+}
+```
 
-- Updated at: {{TIMESTAMP_WITH_TIMEZONE}}
-- Repository root: `{{REPOSITORY_ROOT}}`
-- Branch: `{{BRANCH}}`
-- Verified Git checkpoint: `{{COMMIT_OR_UNCOMMITTED_EXPLANATION}}`
-- Worktree state: {{CLEAN_OR_SUMMARY}}
-- Post-review synchronization check: {{DOCUMENT_CODE_GIT_STATE_AND_RECOMMENDED_ACTION}}
+Only `PASS` is executable. For a non-Git project, replace `repository` with
+`{"mode": "manual", "checkpoint": "<exact immutable description>"}` and
+perform the repository comparison outside the bundled validator.
 
 ## Position
 
-- Phase state: {{PHASE_STATE}}
-- Last accepted step: `{{LAST_ACCEPTED_STEP}}`
-- Next outlined step: `{{NEXT_STEP}}`
+- Last accepted step: `{{LAST_ACCEPTED_STEP_OR_NONE}}`
+- Next outlined step: `{{NEXT_STEP_OR_NONE}}`
 
-## Current handoff
+## Verified evidence
 
-This section is executable only for `not started`, `in progress`, or an
-intentional `release blocked` remediation. `development complete` and
-`accepted` are not executable phase states.
+Delete unused rows or sections instead of filling them with `N/A`.
 
-- Handoff schema version: 1
-- Current executable step: `{{CURRENT_STEP_DOCUMENT}}`
-- Current STEP checkpoint: `sha256:{{CURRENT_STEP_SHA256}}`
-- Repository/worktree checkpoint reviewed: {{REVIEWED_REPOSITORY_CHECKPOINT}}
-- Result: {{PASS_STALE_OR_BLOCKED}}
+| Claim | Authority or current evidence | State |
+|---|---|---|
+<!-- Add only current evidence rows. -->
 
-Only `PASS` is executable. Recompute the STEP checkpoint after every material
-STEP edit and repeat the consistency review when code, documents, or the
-reviewed worktree changes. The reviewed checkpoint may be a commit or an exact
-dirty-worktree description, but STATUS and STEP must record the same value.
-The bundled validator checks that the two documents agree; the reviewer must
-still compare that recorded value with the live repository and worktree.
+## Open items
 
-## Verified capabilities
+| Item | Evidence | Required gate |
+|---|---|---|
+<!-- Add a row only for an open item. -->
 
-| Capability | Code evidence | Test/evidence | State |
-|---|---|---|---|
-| {{CAPABILITY}} | `{{PATH_OR_SYMBOL}}` | `{{TEST_OR_REPORT}}` | implemented / tested / accepted |
-
-## Not yet verified or implemented
-
-- {{MISSING_OR_SCAFFOLDED_ITEM}}
-
-## Current contracts and data baseline
-
-- Schema/migration version: {{SCHEMA_VERSION}}
-- Authoritative fact source: {{FACT_SOURCE}}
-- Stable interfaces: {{INTERFACES}}
-- Active compatibility constraints: {{COMPATIBILITY}}
-
-| Interface | Authority | Producer | Consumers | Version/hash | Compatibility |
-|---|---|---|---|---|---|
-| {{INTERFACE}} | `{{AUTHORITY_PATH}}` | {{PRODUCER}} | {{CONSUMERS}} | {{VERSION_OR_HASH}} | {{COMPATIBILITY_RULE}} |
-
-## Validation baseline
-
-| Command | Executed at | Exit/result | Scope |
-|---|---|---|---|
-| `{{COMMAND}}` | {{TIME}} | {{ACTUAL_RESULT}} | {{SCOPE}} |
-
-## Open risks, defects, and deferred gates
-
-| Item | Severity | Evidence | Required resolution or gate |
-|---|---|---|---|
-| {{RISK}} | {{SEVERITY}} | {{EVIDENCE}} | {{RESOLUTION}}
-
-## Current implementation boundary
-
-- Allowed files/scopes: {{ALLOWED_SCOPE}}
-- Read-only references: {{READ_ONLY_SCOPE}}
-- Forbidden files/scopes: {{FORBIDDEN_SCOPE}}
-- Allowed external effects: {{ALLOWED_EFFECTS}}
-- Effects blocked in tests: {{BLOCKED_EFFECTS}}
-
-## Next-step entry gate
-
-- {{VERIFIABLE_ENTRY_CONDITION}}
-
-## Evidence integrity
-
-- Do not infer completion from file existence, a previous model summary, or a stale report.
-- Re-run the named baseline when code, dependencies, migrations, tests, or acceptance claims change.
-- Keep behavioral guarantees in executable code and tests; link them here.
+Do not copy stable contracts, interfaces, or file boundaries into this file.
+Keep them in the phase contract registry or current STEP and reference them by ID.

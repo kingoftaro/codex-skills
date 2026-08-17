@@ -17,9 +17,15 @@ This file describes order and dependencies. It does not claim that a step is com
 
 - {{NON_GOAL}}
 
-## Stable invariants
+## Contract registry
 
-- {{INVARIANT_AND_EXECUTABLE_GUARD}}
+This is the single documentation authority for stable phase constraints. Point
+to executable definitions and guards instead of copying their contents into
+STATUS or every STEP.
+
+| ID | Kind | Authoritative path or symbol | Guard or evidence | Current rule |
+|---|---|---|---|---|
+| `{{CONTRACT_ID}}` | invariant / interface / data / boundary / compatibility | `{{AUTHORITY_PATH_OR_SYMBOL}}` | `{{GUARD_OR_EVIDENCE}}` | {{CURRENT_RULE}} |
 
 ## Step dependency map
 

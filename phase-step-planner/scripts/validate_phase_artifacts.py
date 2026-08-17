@@ -4,9 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hashlib
+import json
 import re
+import subprocess
 from pathlib import Path
+from typing import Any, Callable
 
 
 STEP_PATTERN = re.compile(r"^- Current executable step:\s*`([^`]+)`\s*$", re.MULTILINE)
@@ -31,7 +35,8 @@ STATUS_REVIEW_CHECKPOINT_PATTERN = re.compile(
 STEP_REVIEW_CHECKPOINT_PATTERN = re.compile(
     r"^- Reviewed repository/worktree checkpoint:\s*(.+?)\s*$", re.MULTILINE
 )
-SUPPORTED_SCHEMA = "1"
+SUPPORTED_SCHEMA_V1 = "1"
+SUPPORTED_SCHEMA_V2 = 2
 SUPPORTED_PHASE_STATES = {
     "not started",
     "in progress",
@@ -41,8 +46,43 @@ SUPPORTED_PHASE_STATES = {
 }
 NON_EXECUTABLE_PHASE_STATES = {"development complete", "accepted"}
 PLACEHOLDER_PATTERN = re.compile(r"\{\{[A-Z][A-Z0-9_]*\}\}")
-TEMPLATE_NAMES = ("STATUS_TEMPLATE.md", "STEP_TEMPLATE.md")
-REQUIRED_STEP_SECTIONS = (
+TEMPLATE_NAMES = (
+    "STATUS_TEMPLATE.md",
+    "STEP_TEMPLATE.md",
+)
+LEGACY_TEMPLATE_PLACEHOLDERS = frozenset(
+    {
+        "{{ACTUAL_RESULT}}", "{{ALLOWED_EFFECTS}}", "{{ALLOWED_SCOPE}}",
+        "{{AUTHORITY_PATH}}", "{{BASELINE_COMMAND}}", "{{BEFORE_OPERATION_AFTER}}",
+        "{{BLOCKED_EFFECTS}}", "{{BRANCH}}", "{{CAPABILITY}}",
+        "{{CLEAN_OR_SUMMARY}}", "{{CODE_OR_MIGRATION}}", "{{COMMAND}}",
+        "{{COMMIT_OR_UNCOMMITTED_EXPLANATION}}", "{{COMPATIBILITY}}",
+        "{{COMPATIBILITY_RULE}}", "{{CONCURRENCY_OR_SIDE_EFFECT_TEST}}",
+        "{{CONCURRENCY_RULE}}", "{{CONSUMERS}}", "{{CURRENT_STEP_DOCUMENT}}",
+        "{{CURRENT_STEP_SHA256}}", "{{DEGRADED_PATH}}",
+        "{{DOCUMENT_CODE_GIT_STATE_AND_RECOMMENDED_ACTION}}", "{{EVIDENCE}}",
+        "{{EXACT_COMMANDS}}", "{{EXACT_CONTRACT}}",
+        "{{EXPLICITLY_EXCLUDED_WORK}}", "{{FACT_SOURCE}}", "{{FAILURE_TEST}}",
+        "{{FAKES_AND_IMPORT_PATHS}}", "{{FORBIDDEN_SCOPE}}",
+        "{{FORBIDDEN_SHORTCUT}}", "{{GIT_CHECKPOINT}}", "{{INTERFACE}}",
+        "{{INTERFACE_BASELINE}}", "{{INTERFACES}}", "{{LAST_ACCEPTED_STEP}}",
+        "{{MINIMAL_WIRING}}", "{{MISSING_OR_SCAFFOLDED_ITEM}}",
+        "{{NEXT_CHANGE}}", "{{NEXT_STEP}}", "{{NORMAL_TEST}}",
+        "{{PASS_STALE_OR_BLOCKED}}", "{{PATH}}", "{{PATH_OR_SCOPE}}",
+        "{{PATH_OR_SYMBOL}}", "{{PHASE_ID}}", "{{PHASE_STATE}}",
+        "{{PREDECESSOR}}", "{{PRODUCER}}", "{{PURPOSE}}",
+        "{{READ_ONLY_SCOPE}}", "{{REASON}}", "{{REGISTRY_SINGLETON_CACHE_FIXTURE}}",
+        "{{REPOSITORY_ROOT}}", "{{RESOLUTION}}",
+        "{{REVIEWED_REPOSITORY_CHECKPOINT}}", "{{RISK}}", "{{SCHEMA_BASELINE}}",
+        "{{SCHEMA_VERSION}}", "{{SCOPE}}", "{{SEVERITY}}",
+        "{{SINGLE_VERIFIABLE_OUTCOME}}", "{{SMALLEST_SAFE_CHANGE}}",
+        "{{STEP_ID}}", "{{STEP_NAME}}", "{{STOP_CONDITION}}",
+        "{{TEST_CONSTRAINT_OR_VALIDATOR}}", "{{TEST_OR_REPORT}}", "{{TESTS}}",
+        "{{TESTS_BEFORE_REPORTS}}", "{{TIME}}", "{{TIMESTAMP_WITH_TIMEZONE}}",
+        "{{VERIFIABLE_ENTRY_CONDITION}}", "{{VERSION_OR_HASH}}", "{{WORKDIR}}",
+    }
+)
+REQUIRED_STEP_SECTIONS_V1 = (
     "Handoff contract",
     "One outcome",
     "Non-goals",
@@ -61,10 +101,53 @@ REQUIRED_ACCEPTANCE_SECTIONS = (
     "Failure and adversarial cases",
     "Validation commands",
 )
+REQUIRED_STEP_SECTIONS_V2 = (
+    "Outcome",
+    "Contract references and delta",
+    "File boundary",
+    "Risk controls",
+    "Acceptance",
+    "Stop conditions",
+)
+MANIFEST_PATTERN = re.compile(
+    r"^```json[ \t]+phase-handoff[ \t]*\r?\n(?P<body>.*?)^```[ \t]*$",
+    re.MULTILINE | re.DOTALL,
+)
+SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
+GIT_HEAD_PATTERN = re.compile(r"^[0-9a-f]{40,64}$")
+CONTRACT_ID_ROW_PATTERN = re.compile(
+    r"^\s*\|\s*`(?P<id>[A-Za-z0-9][A-Za-z0-9._:/-]*)`\s*\|",
+    re.MULTILINE,
+)
+CONTRACT_ID_BULLET_PATTERN = re.compile(
+    r"^\s*-\s+(?:Contract ID|ID):\s*`(?P<id>[A-Za-z0-9][A-Za-z0-9._:/-]*)`\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+ACTIVE_PACKS_PATTERN = re.compile(r"^- Active packs:\s*(.+?)\s*$", re.MULTILINE)
+RISK_PACK_NAME_PATTERN = re.compile(r"`([a-z][a-z0-9-]*)`")
+SUPPORTED_RISK_PACKS = {
+    "adjacent-paths",
+    "public-compatibility",
+    "data-migration",
+    "concurrency-state",
+    "external-effects",
+    "security-privacy",
+    "shared-state",
+}
+
+GitSnapshotProvider = Callable[[Path, Path, Path], dict[str, str]]
+
+
+def digest_bytes(path: Path) -> bytes:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.digest()
 
 
 def sha256(path: Path) -> str:
-    return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
+    return f"sha256:{digest_bytes(path).hex()}"
 
 
 def single_match(pattern: re.Pattern[str], text: str, label: str) -> str:
@@ -76,7 +159,7 @@ def single_match(pattern: re.Pattern[str], text: str, label: str) -> str:
 
 def bundled_template_placeholders() -> set[str]:
     assets = Path(__file__).resolve().parent.parent / "assets"
-    placeholders: set[str] = set()
+    placeholders = set(LEGACY_TEMPLATE_PLACEHOLDERS)
     for name in TEMPLATE_NAMES:
         template = assets / name
         if not template.is_file():
@@ -118,34 +201,74 @@ def section_body(text: str, level: int, title: str) -> str:
     return body
 
 
-def validate_step_structure(text: str) -> None:
-    for title in REQUIRED_STEP_SECTIONS:
+def validate_step_structure_v1(text: str) -> None:
+    for title in REQUIRED_STEP_SECTIONS_V1:
         section_body(text, 2, title)
     acceptance = section_body(text, 2, "Acceptance")
     for title in REQUIRED_ACCEPTANCE_SECTIONS:
         section_body(acceptance, 3, title)
 
 
-def resolve_inside(root: Path, relative: str) -> Path:
+def validate_step_structure_v2(text: str) -> None:
+    for title in REQUIRED_STEP_SECTIONS_V2:
+        section_body(text, 2, title)
+
+
+def resolve_file_inside(root: Path, relative: str, label: str) -> Path:
     candidate = Path(relative)
     if candidate.is_absolute():
-        raise ValueError("current STEP path must be relative to the phase directory")
+        raise ValueError(f"{label} path must be relative to the phase directory")
     resolved = (root / candidate).resolve()
     try:
         resolved.relative_to(root)
     except ValueError as exc:
-        raise ValueError("current STEP path escapes the phase directory") from exc
+        raise ValueError(f"{label} path escapes the phase directory") from exc
     if not resolved.is_file():
-        raise ValueError(f"current STEP does not exist or is not a file: {relative}")
+        raise ValueError(f"{label} does not exist or is not a file: {relative}")
     return resolved
 
 
-def validate(phase_dir: Path) -> tuple[Path, str]:
-    root = phase_dir.resolve()
-    status = root / "STATUS.md"
-    if not status.is_file():
-        raise ValueError(f"STATUS.md is missing: {status}")
-    text = status.read_text(encoding="utf-8")
+def resolve_inside(root: Path, relative: str) -> Path:
+    return resolve_file_inside(root, relative, "current STEP")
+
+
+def contract_ids(text: str, section_title: str, label: str) -> set[str]:
+    body = section_body(text, 2, section_title)
+    found = CONTRACT_ID_ROW_PATTERN.findall(body) + CONTRACT_ID_BULLET_PATTERN.findall(body)
+    if not found:
+        raise ValueError(
+            f"{label} must reference at least one backticked contract ID table row or ID bullet"
+        )
+    if len(found) != len(set(found)):
+        raise ValueError(f"{label} contains duplicate contract ID rows")
+    return set(found)
+
+
+def validate_risk_packs(step_text: str) -> set[str]:
+    body = section_body(step_text, 2, "Risk controls")
+    matches = ACTIVE_PACKS_PATTERN.findall(body)
+    if len(matches) != 1:
+        raise ValueError(
+            "current STEP Risk controls must contain exactly one '- Active packs:' line"
+        )
+    value = matches[0].strip()
+    if value.casefold().rstrip(".") == "none":
+        return set()
+    names = RISK_PACK_NAME_PATTERN.findall(value)
+    residue = RISK_PACK_NAME_PATTERN.sub("", value).replace(",", "").strip()
+    if not names or residue:
+        raise ValueError(
+            "active risk packs must be 'none' or comma-separated backticked pack names"
+        )
+    unknown = sorted(set(names) - SUPPORTED_RISK_PACKS)
+    if unknown:
+        raise ValueError("current STEP names unsupported risk packs: " + ", ".join(unknown))
+    if len(names) != len(set(names)):
+        raise ValueError("current STEP contains duplicate active risk packs")
+    return set(names)
+
+
+def validate_v1(root: Path, text: str) -> tuple[Path, str]:
     reject_unresolved_placeholders(text, "STATUS.md")
     phase_state = single_match(PHASE_STATE_PATTERN, text, "Phase state")
     if phase_state not in SUPPORTED_PHASE_STATES:
@@ -157,14 +280,14 @@ def validate(phase_dir: Path) -> tuple[Path, str]:
     step = resolve_inside(root, relative)
     step_text = step.read_text(encoding="utf-8")
     reject_unresolved_placeholders(step_text, "current STEP")
-    validate_step_structure(step_text)
+    validate_step_structure_v1(step_text)
 
     status_schema = single_match(SCHEMA_PATTERN, text, "Handoff schema version")
     step_schema = single_match(SCHEMA_PATTERN, step_text, "Handoff schema version in STEP")
-    if status_schema != SUPPORTED_SCHEMA or step_schema != SUPPORTED_SCHEMA:
+    if status_schema != SUPPORTED_SCHEMA_V1 or step_schema != SUPPORTED_SCHEMA_V1:
         raise ValueError(
             f"unsupported or mixed handoff schema: STATUS={status_schema}, "
-            f"STEP={step_schema}, supported={SUPPORTED_SCHEMA}"
+            f"STEP={step_schema}, supported={SUPPORTED_SCHEMA_V1}"
         )
 
     result = single_match(REVIEW_RESULT_PATTERN, text, "pre-step consistency Result")
@@ -213,11 +336,336 @@ def validate(phase_dir: Path) -> tuple[Path, str]:
     return step, actual
 
 
+def phase_manifest(text: str) -> tuple[dict[str, Any], re.Match[str]] | None:
+    matches = list(MANIFEST_PATTERN.finditer(text))
+    if not matches:
+        if "phase-handoff" in text:
+            raise ValueError("STATUS.md phase-handoff JSON block is malformed")
+        return None
+    if len(matches) != 1:
+        raise ValueError(
+            "STATUS.md must contain exactly one phase-handoff JSON block; "
+            f"found {len(matches)}"
+        )
+    match = matches[0]
+    try:
+        manifest = json.loads(match.group("body"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"STATUS.md phase-handoff JSON is invalid: {exc.msg}") from exc
+    if not isinstance(manifest, dict):
+        raise ValueError("STATUS.md phase-handoff JSON must be an object")
+    return manifest, match
+
+
+def required_string(mapping: dict[str, Any], key: str, label: str) -> str:
+    value = mapping.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{label} must contain a non-empty string {key!r}")
+    return value.strip()
+
+
+def validate_phase_state(phase_state: str) -> None:
+    if phase_state not in SUPPORTED_PHASE_STATES:
+        raise ValueError(f"unsupported phase state: {phase_state}")
+    if phase_state in NON_EXECUTABLE_PHASE_STATES:
+        raise ValueError(f"phase state is not executable: {phase_state}")
+
+
+def default_git_runner(cwd: Path, args: tuple[str, ...]) -> bytes:
+    completed = subprocess.run(
+        ("git", "-C", str(cwd), *args),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise ValueError(f"Git snapshot command failed ({' '.join(args)}): {detail}")
+    return completed.stdout
+
+
+def capture_git_snapshot(
+    phase_dir: Path,
+    status: Path,
+    step: Path,
+    *,
+    runner: Callable[[Path, tuple[str, ...]], bytes] = default_git_runner,
+) -> dict[str, str]:
+    root_text = runner(phase_dir, ("rev-parse", "--show-toplevel")).decode("utf-8").strip()
+    if not root_text:
+        raise ValueError("Git did not report a repository root")
+    repository_root = Path(root_text).resolve()
+    try:
+        status_relative = status.resolve().relative_to(repository_root).as_posix()
+        step_relative = step.resolve().relative_to(repository_root).as_posix()
+    except ValueError as exc:
+        raise ValueError("STATUS.md and current STEP must be inside the Git repository") from exc
+
+    head = runner(repository_root, ("rev-parse", "HEAD")).decode("ascii").strip().lower()
+    if not GIT_HEAD_PATTERN.fullmatch(head):
+        raise ValueError(f"Git reported an unsupported HEAD value: {head!r}")
+
+    exclusions = {status_relative, step_relative}
+    pathspec = (".", *(f":(exclude){path}" for path in sorted(exclusions)))
+    tracked_diff = runner(
+        repository_root,
+        (
+            "-c",
+            "core.quotePath=false",
+            "diff",
+            "--binary",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--no-renames",
+            "HEAD",
+            "--",
+            *pathspec,
+        ),
+    )
+    untracked_output = runner(
+        repository_root,
+        ("ls-files", "--others", "--exclude-standard", "-z"),
+    )
+
+    fingerprint = hashlib.sha256()
+    fingerprint.update(b"tracked-diff\0")
+    fingerprint.update(tracked_diff)
+    for raw_relative in sorted(part for part in untracked_output.split(b"\0") if part):
+        relative = raw_relative.decode("utf-8")
+        if relative in exclusions:
+            continue
+        candidate = (repository_root / Path(relative)).resolve()
+        try:
+            candidate.relative_to(repository_root)
+        except ValueError as exc:
+            raise ValueError(f"Git reported an untracked path outside the repository: {relative}") from exc
+        if not candidate.is_file():
+            raise ValueError(f"Git reported a non-file untracked path: {relative}")
+        fingerprint.update(b"\0untracked\0")
+        fingerprint.update(raw_relative)
+        fingerprint.update(b"\0")
+        fingerprint.update(digest_bytes(candidate))
+
+    return {
+        "head": head,
+        "worktree_sha256": f"sha256:{fingerprint.hexdigest()}",
+    }
+
+
+def validate_v2(
+    root: Path,
+    status: Path,
+    text: str,
+    manifest: dict[str, Any],
+    *,
+    snapshot_provider: GitSnapshotProvider | None = None,
+) -> tuple[Path, str]:
+    reject_unresolved_placeholders(text, "STATUS.md")
+    if manifest.get("handoff_schema") != SUPPORTED_SCHEMA_V2:
+        raise ValueError(
+            "unsupported phase-handoff JSON schema: "
+            f"{manifest.get('handoff_schema')!r}; supported={SUPPORTED_SCHEMA_V2}"
+        )
+
+    phase_state = required_string(manifest, "phase_state", "phase-handoff JSON")
+    validate_phase_state(phase_state)
+    result = required_string(manifest, "review_result", "phase-handoff JSON")
+    if result not in {"PASS", "STALE", "BLOCKED"}:
+        raise ValueError(f"unsupported review result: {result}")
+    if result != "PASS":
+        raise ValueError(f"pre-step consistency Result is not executable: {result}")
+
+    relative = required_string(manifest, "current_step", "phase-handoff JSON")
+    step = resolve_inside(root, relative)
+    step_text = step.read_text(encoding="utf-8")
+    reject_unresolved_placeholders(step_text, "current STEP")
+    validate_step_structure_v2(step_text)
+    validate_risk_packs(step_text)
+
+    registry_relative = required_string(
+        manifest,
+        "contract_registry",
+        "phase-handoff JSON",
+    )
+    registry = resolve_file_inside(root, registry_relative, "contract registry")
+    registry_text = registry.read_text(encoding="utf-8")
+    reject_unresolved_placeholders(registry_text, "contract registry")
+    expected_registry = required_string(
+        manifest,
+        "contract_registry_sha256",
+        "phase-handoff JSON",
+    )
+    if not SHA256_PATTERN.fullmatch(expected_registry):
+        raise ValueError(
+            "phase-handoff JSON contract_registry_sha256 must be prepared as sha256:<64 hex>"
+        )
+    actual_registry = sha256(registry)
+    if actual_registry != expected_registry:
+        raise ValueError(
+            "contract registry checkpoint mismatch: "
+            f"expected {expected_registry}, actual {actual_registry}"
+        )
+    registry_ids = contract_ids(registry_text, "Contract registry", "contract registry")
+    referenced_ids = contract_ids(
+        step_text,
+        "Contract references and delta",
+        "current STEP",
+    )
+    missing_ids = sorted(referenced_ids - registry_ids)
+    if missing_ids:
+        raise ValueError(
+            "current STEP references contract IDs absent from the registry: "
+            + ", ".join(missing_ids)
+        )
+
+    expected = required_string(manifest, "step_sha256", "phase-handoff JSON")
+    if not SHA256_PATTERN.fullmatch(expected):
+        raise ValueError("phase-handoff JSON step_sha256 must be prepared as sha256:<64 hex>")
+    actual = sha256(step)
+    if actual != expected:
+        raise ValueError(f"current STEP checkpoint mismatch: expected {expected}, actual {actual}")
+
+    repository = manifest.get("repository")
+    if not isinstance(repository, dict):
+        raise ValueError("phase-handoff JSON must contain a repository object")
+    mode = required_string(repository, "mode", "phase-handoff repository")
+    if mode == "manual":
+        required_string(repository, "checkpoint", "manual repository checkpoint")
+    elif mode == "git":
+        expected_head = required_string(repository, "head", "Git repository checkpoint")
+        expected_worktree = required_string(
+            repository,
+            "worktree_sha256",
+            "Git repository checkpoint",
+        )
+        if not GIT_HEAD_PATTERN.fullmatch(expected_head):
+            raise ValueError("Git repository head must be prepared from the live repository")
+        if not SHA256_PATTERN.fullmatch(expected_worktree):
+            raise ValueError("Git worktree_sha256 must be prepared from the live repository")
+        provider = snapshot_provider or capture_git_snapshot
+        observed = provider(root, status, step)
+        if observed.get("head") != expected_head:
+            raise ValueError(
+                "live Git HEAD mismatch: "
+                f"expected {expected_head}, actual {observed.get('head')}"
+            )
+        if observed.get("worktree_sha256") != expected_worktree:
+            raise ValueError(
+                "live Git worktree mismatch: "
+                f"expected {expected_worktree}, actual {observed.get('worktree_sha256')}"
+            )
+    else:
+        raise ValueError(f"unsupported repository mode: {mode}")
+    return step, actual
+
+
+def validate(
+    phase_dir: Path,
+    *,
+    snapshot_provider: GitSnapshotProvider | None = None,
+) -> tuple[Path, str]:
+    root = phase_dir.resolve()
+    status = root / "STATUS.md"
+    if not status.is_file():
+        raise ValueError(f"STATUS.md is missing: {status}")
+    text = status.read_text(encoding="utf-8")
+    parsed = phase_manifest(text)
+    if parsed is None:
+        return validate_v1(root, text)
+    manifest, _ = parsed
+    return validate_v2(
+        root,
+        status,
+        text,
+        manifest,
+        snapshot_provider=snapshot_provider,
+    )
+
+
+def prepare(
+    phase_dir: Path,
+    *,
+    snapshot_provider: GitSnapshotProvider | None = None,
+) -> tuple[Path, str]:
+    root = phase_dir.resolve()
+    status = root / "STATUS.md"
+    if not status.is_file():
+        raise ValueError(f"STATUS.md is missing: {status}")
+    text = status.read_text(encoding="utf-8")
+    reject_unresolved_placeholders(text, "STATUS.md")
+    parsed = phase_manifest(text)
+    if parsed is None:
+        raise ValueError("--prepare requires a schema 2 phase-handoff JSON block")
+    manifest, match = parsed
+    if manifest.get("handoff_schema") != SUPPORTED_SCHEMA_V2:
+        raise ValueError("--prepare supports only phase-handoff schema 2")
+    phase_state = required_string(manifest, "phase_state", "phase-handoff JSON")
+    validate_phase_state(phase_state)
+    result = required_string(manifest, "review_result", "phase-handoff JSON")
+    if result != "PASS":
+        raise ValueError(f"pre-step consistency Result is not executable: {result}")
+
+    relative = required_string(manifest, "current_step", "phase-handoff JSON")
+    step = resolve_inside(root, relative)
+    step_text = step.read_text(encoding="utf-8")
+    reject_unresolved_placeholders(step_text, "current STEP")
+    validate_step_structure_v2(step_text)
+    validate_risk_packs(step_text)
+    manifest["step_sha256"] = sha256(step)
+
+    registry_relative = required_string(
+        manifest,
+        "contract_registry",
+        "phase-handoff JSON",
+    )
+    registry = resolve_file_inside(root, registry_relative, "contract registry")
+    registry_text = registry.read_text(encoding="utf-8")
+    reject_unresolved_placeholders(registry_text, "contract registry")
+    registry_ids = contract_ids(registry_text, "Contract registry", "contract registry")
+    referenced_ids = contract_ids(
+        step_text,
+        "Contract references and delta",
+        "current STEP",
+    )
+    missing_ids = sorted(referenced_ids - registry_ids)
+    if missing_ids:
+        raise ValueError(
+            "current STEP references contract IDs absent from the registry: "
+            + ", ".join(missing_ids)
+        )
+    manifest["contract_registry_sha256"] = sha256(registry)
+
+    repository = manifest.get("repository")
+    if not isinstance(repository, dict):
+        raise ValueError("phase-handoff JSON must contain a repository object")
+    mode = required_string(repository, "mode", "phase-handoff repository")
+    if mode == "git":
+        provider = snapshot_provider or capture_git_snapshot
+        repository.update(provider(root, status, step))
+    elif mode == "manual":
+        required_string(repository, "checkpoint", "manual repository checkpoint")
+    else:
+        raise ValueError(f"unsupported repository mode: {mode}")
+
+    manifest["prepared_at"] = dt.datetime.now(dt.timezone.utc).isoformat().replace(
+        "+00:00", "Z"
+    )
+    block = "```json phase-handoff\n" + json.dumps(manifest, indent=2) + "\n```"
+    updated = text[: match.start()] + block + text[match.end() :]
+    status.write_text(updated, encoding="utf-8")
+    return validate(root, snapshot_provider=snapshot_provider)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("phase_dir", nargs="?", help="phase directory containing STATUS.md")
     mode.add_argument("--digest", metavar="STEP_PATH", help="print the SHA-256 checkpoint for one STEP")
+    mode.add_argument(
+        "--prepare",
+        metavar="PHASE_DIR",
+        help="populate a schema 2 STEP digest and live Git checkpoint, then validate",
+    )
     args = parser.parse_args()
     try:
         if args.digest:
@@ -225,6 +673,9 @@ def main() -> int:
             if not step.is_file():
                 raise ValueError(f"STEP does not exist or is not a file: {step}")
             print(sha256(step))
+        elif args.prepare:
+            step, checkpoint = prepare(Path(args.prepare))
+            print(f"PASS: prepared {step} and validated {checkpoint}")
         else:
             step, checkpoint = validate(Path(args.phase_dir))
             print(f"PASS: {step} has a complete handoff structure and matches {checkpoint}")

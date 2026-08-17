@@ -12,6 +12,12 @@ checkpoint and worktree, code definitions and consumers, migrations or schemas,
 configuration, relevant tests, and raw validation evidence. Use current files
 and command results; do not substitute chat history or a model summary.
 
+Treat the phase contract registry as the documentation authority for stable
+constraints, but verify every referenced ID against its named executable or
+accepted source. STATUS owns only current handoff state; a STEP owns only its
+delta and execution boundary. Do not repair drift by copying the same fact into
+all three artifacts.
+
 ## Reconcile in this order
 
 1. **State:** Confirm that accepted, current, outlined, blocked, and deferred
@@ -39,8 +45,9 @@ source makes the next STEP easier.
 
 Mark `PASS` only when every material dependency of the proposed STEP has one
 consistent, evidence-backed interpretation. Update stale `STATUS.md` facts from
-repository evidence before marking `PASS`, then record the review timestamp,
-repository/worktree checkpoint, sources, comparisons, and result.
+repository evidence before marking `PASS`, record the compared sources and
+result, then let schema 2 preparation generate the timestamp, registry and STEP
+digests, and repository/worktree checkpoint.
 
 ## Check closure after a passing review
 

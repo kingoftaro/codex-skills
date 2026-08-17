@@ -7,6 +7,14 @@ description: Audit and split a large software phase into bounded, independently 
 
 Turn a large phase into repository-backed, evidence-driven handoffs. Never rely on chat history or a model's completion claim as the current project state.
 
+## Apply the phase entry gate
+
+Use this Skill only when work has multiple independently accepted outcomes, must
+survive a session or model handoff, or requires reconciliation of an existing
+phase. Route a single bounded change directly to `deliver-code-change`; do not
+create phase artifacts for it. The phase workflow is intentionally stricter,
+but its documentation depth must still be proportional to active risk.
+
 ## Choose the operating mode
 
 1. **Plan a new phase**: inspect the project rules and accepted predecessor state, create the dependency map, and detail only the first executable step.
@@ -37,11 +45,11 @@ Do not mark a step complete merely because its files exist or tests are green. C
 
 ## Control repeated repair loops
 
-Immediately before creating, detailing, or materially rewriting an executable STEP, read `references/CONSISTENCY_REVIEW.md` and apply its `PASS`, `STALE`, and `BLOCKED` gate. Read `references/FAILURE_PATTERNS.md` only for patterns relevant to the current phase or review finding.
+Immediately before creating, detailing, or materially rewriting an executable STEP, read `references/CONSISTENCY_REVIEW.md` and apply its `PASS`, `STALE`, and `BLOCKED` gate. Read `references/FAILURE_PATTERNS.md` only for patterns relevant to the current phase or review finding, activate only the triggered risk packs defined there, and record their names in the STEP.
 
 For every review finding, classify it as a latent defect, a repair-introduced regression, or an environment/evidence contradiction. Record the failing reproduction, governing invariant, regression guard, affected artifacts, and closure evidence in the phase's existing issue table or STATUS; do not create a second status file.
 
-Before closing a fix, verify the changed path and its adjacent contract: default input, caller override, missing or invalid input, failure cleanup, and preserved compatibility. Mark an item closed only when the original reproduction fails before the fix, passes after it, and the relevant adjacent paths pass.
+Before closing a fix, apply the `adjacent-paths` risk pack when its trigger is present. Mark an item closed only when the original reproduction fails before the fix, passes after it, and the affected neighboring paths pass.
 
 If the same step produces a new P1/P2 repair regression in two consecutive review rounds, freeze acceptance-document edits, stop adding patches, perform a root-cause review, and split the step by independently accepted outcome before resuming implementation.
 
@@ -64,13 +72,19 @@ Generate a dependency-aware outline for the whole phase, but fully specify only 
 
 Use the assets as output templates:
 
-- Copy and adapt `assets/PHASE_README_TEMPLATE.md` for the phase index and dependency map.
-- Copy and adapt `assets/STATUS_TEMPLATE.md` for the phase's single verified snapshot.
-- Copy and adapt `assets/STEP_TEMPLATE.md` for each executable step.
+- Copy and adapt `assets/PHASE_README_TEMPLATE.md` for the dependency map and the single registry of stable constraints, interfaces, data baselines, boundaries, and compatibility rules. Give each entry a stable ID and point to its authoritative code, schema, decision, or executable guard.
+- Copy and adapt `assets/STATUS_TEMPLATE.md` for the phase's single machine-readable snapshot. Keep phase state, current STEP, review result, digest, and repository checkpoint there; do not copy stable contracts or STEP boundaries into STATUS.
+- Copy and adapt `assets/STEP_TEMPLATE.md` for each executable step. Reference registry IDs and state only this step's delta, file boundary, active risk packs, acceptance, and stop conditions.
 
 Keep project-specific paths, commands, architecture, and acceptance thresholds in the project artifacts, not in this Skill.
 
-When the failure resembles hidden shared state, test-order dependence, accidental OS actions, stale plans, or false-green acceptance, incorporate the relevant guardrails from `references/FAILURE_PATTERNS.md` without copying the incident narrative into every step.
+The bundled templates use handoff schema 2. Existing schema 1 artifacts remain
+valid, but no schema 1 templates are distributed and new handoffs must use
+schema 2. Delete unused table rows instead of filling them with
+`N/A`. Never repeat a fact merely so that two Markdown files can agree; store
+intent once and let the validator bind generated repository facts.
+
+When the failure resembles hidden shared state, test-order dependence, accidental OS actions, stale plans, or false-green acceptance, incorporate the relevant guardrails from `references/FAILURE_PATTERNS.md` and activate the matching risk pack without copying the incident narrative into every step.
 
 ## Prepare an implementation handoff
 
@@ -79,28 +93,54 @@ Give the implementation model only:
 1. applicable `AGENTS.md` files;
 2. the phase `STATUS.md`;
 3. the current `STEP_*.md`;
-4. explicitly named read-only references.
+4. the phase contract registry named by STATUS;
+5. explicitly named read-only references.
 
-Require a pre-code rehearsal that lists file touchpoints, traces the call chain to every external effect, identifies factories and shared mutable state, explains test isolation, names likely mistakes and their detecting tests, and states where to stop if reality differs from the step.
+Include `references/FAILURE_PATTERNS.md` among those references when the STEP
+names an active pack; omit it when the STEP records `none`.
+
+Require a proportional pre-code rehearsal that confirms exact file touchpoints,
+authoritative definitions and consumers, acceptance evidence, and the stop point.
+Extend it only with the items required by active risk packs.
 
 Never authorize the model to complete the whole phase, update a passing report before evidence exists, or silently expand the allowed file scope.
 
-For an active handoff, compute the STEP digest with `scripts/validate_phase_artifacts.py --digest <STEP_PATH>`, record it in `STATUS.md`, then run `scripts/validate_phase_artifacts.py <PHASE_DIRECTORY>`. The validator rejects incomplete STEP structure, non-executable phase states, a non-PASS STEP review, unresolved bundled template placeholders, and mismatched handoff facts. It checks that STATUS and STEP describe the same reviewed checkpoint; it does not inspect the live Git worktree, so verify that checkpoint separately before handoff. Do not hand off a STEP when validation fails. After changing the bundled handoff schema, templates, validator, or executor contract, run `scripts/validate_handoff_contract.py`; when `deliver-code-change` is installed adjacent to this Skill, that command also validates the cross-Skill contract.
+For a schema 2 Git handoff, finish the semantic consistency review, set its
+result in `STATUS.md`, then run:
+
+```text
+python scripts/validate_phase_artifacts.py --prepare <PHASE_DIRECTORY>
+```
+
+Preparation verifies that every STEP contract ID exists in the phase registry,
+computes registry and STEP digests, then records HEAD and a worktree fingerprint.
+It excludes STATUS and the separately digested STEP from that fingerprint,
+writes generated facts once in the STATUS JSON block, and immediately validates
+them against live Git. A later validation run is read-only and rejects drift.
+For a non-Git repository, use manual checkpoint mode and compare its immutable
+checkpoint separately. Never use manual mode merely to bypass an available Git
+failure.
+
+The validator rejects incomplete core STEP structure, non-executable phase
+states, a non-PASS review, unknown contract IDs, unresolved bundled template
+placeholders, registry or STEP digest drift, path escape, and repository drift.
+Schema 1 validation remains available
+for existing handoffs but cannot perform the schema 2 live Git check. Do not
+hand off a STEP when validation fails. After changing the bundled handoff
+schema, templates, validator, or executor contract, run
+`scripts/validate_handoff_contract.py`; when `deliver-code-change` is installed
+adjacent to this Skill, that command also validates the cross-Skill contract.
 
 ## Accept and advance
 
 After implementation:
 
 1. inspect the diff and untracked files;
-2. run targeted validation and the relevant regression set;
-3. run adjacent-path checks for changed defaults, overrides, invalid inputs, cleanup, and compatibility;
-4. verify that no forbidden external effect occurred;
-5. review contracts, migrations, privacy, rollback, and failure behavior in proportion to risk;
-6. run the repository's evidence-consistency checker when available;
-7. when the review or re-review passes, compare every affected phase index, STEP, acceptance record, issue or risk entry, and `STATUS.md` with the final code and evidence, then inspect `git status`, untracked files, and the final diff;
-8. if documents, code, or Git state are not synchronized, tell the user exactly what is stale, modified, untracked, or uncommitted, why it matters, and the smallest recommended update or commit action;
-9. update documents or create a commit only when the user request, repository rules, or active workflow already authorizes that action; after an authorized change, rerun the affected consistency and Git checks;
-10. record the observed commit or explicit uncommitted disposition in the handoff, then detail the next step only when its inputs are mutually consistent.
+2. run the STEP acceptance gate and the checks required by its active risk packs;
+3. verify that no forbidden external effect occurred and run the repository's evidence-consistency checker when available;
+4. compare affected phase contracts, STEP, acceptance evidence, open items, and STATUS with final code and evidence, then inspect Git state again;
+5. if anything is not synchronized, report the exact stale or pending item, its effect, and the smallest recommended update or commit action;
+6. update documents or create a commit only with existing authority, rerun affected checks, prepare the next handoff snapshot, and detail the successor only from mutually consistent inputs.
 
 `PASS` describes the review evidence; it does not silently grant authority to edit, commit, or push. Do not stage unrelated user changes. A dirty but internally consistent worktree may retain `PASS` when reported exactly. If the closure check reveals facts that contradict the review, change the handoff to `STALE` or `BLOCKED`; do not leave an executable `PASS` in place while only warning the user.
 

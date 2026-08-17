@@ -37,6 +37,8 @@ Use `deliver-code-change` directly for a standalone, well-bounded change. Use `p
 
 - Repository evidence outranks model summaries and stale reports.
 - One bounded outcome is implemented at a time.
+- Stable phase facts have one documented authority; STEP files reference contract IDs and describe only their delta.
+- Documentation depth expands through conditional risk packs instead of mandatory fields for every possible failure mode.
 - File scope, contracts, state transitions, and external side effects are explicit.
 - Automated tests isolate browsers, processes, notifications, networks, and real user data.
 - Factories and read-only constructors do not trigger hidden startup effects.
@@ -107,13 +109,28 @@ python .\deliver-code-change\scripts\validate_skill.py .\deliver-code-change
 python .\deliver-code-change\scripts\validate_skill.py .\phase-step-planner
 ```
 
-Validate the structural completeness, cross-document facts, and STEP digest of a generated phase handoff:
+Prepare a new schema 2 Git handoff after its semantic consistency review. This
+single command writes the STEP digest and live Git snapshot into `STATUS.md`,
+then validates the result:
+
+```powershell
+python .\phase-step-planner\scripts\validate_phase_artifacts.py --prepare <phase-directory>
+```
+
+Revalidate an existing handoff without changing it:
 
 ```powershell
 python .\phase-step-planner\scripts\validate_phase_artifacts.py <phase-directory>
 ```
 
-This validator confirms that STATUS and STEP record the same reviewed checkpoint; it does not inspect the live Git worktree. Compare the recorded checkpoint with the repository before implementation.
+Schema 2 keeps machine facts once in a JSON block in `STATUS.md`, binds the
+phase contract registry and current STEP by digest, rejects STEP contract IDs
+that are absent from the registry, and compares recorded HEAD and worktree
+fingerprints with live Git. The worktree fingerprint excludes STATUS and the
+digested STEP to avoid a self-referential snapshot. Manual repository mode is available for
+non-Git projects and requires an independent repository comparison. Existing
+schema 1 handoffs remain valid but retain their legacy cross-document checks
+and do not gain live Git validation.
 
 Run both regression test suites:
 

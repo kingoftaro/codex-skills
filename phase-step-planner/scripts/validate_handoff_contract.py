@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -93,29 +94,80 @@ def status_text(
     )
 
 
+def step_text_v2() -> str:
+    return (
+        "# STEP_01: example\n\n"
+        "## Outcome\n\n- Deliver one verified example.\n"
+        "\n## Contract references and delta\n\n"
+        "| Contract ID | Delta |\n"
+        "|---|---|\n"
+        "| `INV-01` | unchanged |\n"
+        "\n## File boundary\n\n- Modify only `example.py`.\n"
+        "\n## Risk controls\n\n- Active packs: none.\n"
+        "\n## Acceptance\n\n- Run `python -m unittest`.\n"
+        "\n## Stop conditions\n\n- Stop when scope is insufficient.\n"
+    )
+
+
+def registry_text_v2() -> str:
+    return (
+        "# Phase example\n\n"
+        "## Contract registry\n\n"
+        "| ID | Kind | Authority | Guard | Rule |\n"
+        "|---|---|---|---|---|\n"
+        "| `INV-01` | invariant | `example.py:run` | `test_example.py` | Stable |\n"
+    )
+
+
+def status_text_v2(
+    checkpoint: str,
+    registry_checkpoint: str,
+    *,
+    result: str = "PASS",
+    phase_state: str = "in progress",
+) -> str:
+    manifest = {
+        "handoff_schema": 2,
+        "phase_state": phase_state,
+        "current_step": "STEP_01.md",
+        "step_sha256": checkpoint,
+        "contract_registry": "README.md",
+        "contract_registry_sha256": registry_checkpoint,
+        "review_result": result,
+        "repository": {"mode": "manual", "checkpoint": "snapshot:contract-test"},
+    }
+    return (
+        "# Phase example current status\n\n"
+        "```json phase-handoff\n"
+        f"{json.dumps(manifest, indent=2)}\n"
+        "```\n"
+    )
+
+
 def validate_static_contract() -> bool:
     status_template = (PLANNER / "assets" / "STATUS_TEMPLATE.md").read_text(encoding="utf-8")
     step_template = (PLANNER / "assets" / "STEP_TEMPLATE.md").read_text(encoding="utf-8")
     require(
         status_template,
         (
-            "Phase state:",
-            "Handoff schema version: 1",
-            "Current STEP checkpoint:",
-            "Schema/migration version:",
-            "Repository/worktree checkpoint reviewed:",
-            "Result: {{PASS_STALE_OR_BLOCKED}}",
-            "| Interface | Authority | Producer | Consumers | Version/hash | Compatibility |",
+            "```json phase-handoff",
+            '"handoff_schema": 2',
+            '"step_sha256": "AUTO"',
+            '"contract_registry_sha256": "AUTO"',
+            '"mode": "git"',
+            "let `--prepare` generate digests and Git facts",
         ),
         PLANNER / "assets" / "STATUS_TEMPLATE.md",
     )
     require(
         step_template,
         (
-            "Handoff schema version: 1",
-            "Current schema/migration:",
-            "Reviewed repository/worktree checkpoint:",
-            "Pre-step consistency review: PASS",
+            "## Contract references and delta",
+            "## File boundary",
+            "## Risk controls",
+            "## Acceptance",
+            "## Stop conditions",
+            "FAILURE_PATTERNS.md",
         ),
         PLANNER / "assets" / "STEP_TEMPLATE.md",
     )
@@ -125,12 +177,15 @@ def validate_static_contract() -> bool:
     require(
         executor,
         (
-            "handoff schema version `1`",
+            "handoff schema `1` or `2`",
+            "schema 2",
+            "schema 1",
+            "live Git",
             "`STALE` and `BLOCKED` are not executable",
             "`development complete` and `accepted` are not executable",
             "unresolved bundled template placeholders",
-            "same schema/migration baseline",
-            "same schema/migration baseline and reviewed repository/worktree checkpoint",
+            "Contract references and delta",
+            "Risk controls",
         ),
         EXECUTOR_HANDOFF,
     )
@@ -143,12 +198,49 @@ def validate_scenarios() -> None:
         phase = Path(temporary).resolve()
         step = phase / "STEP_01.md"
         status = phase / "STATUS.md"
+        registry = phase / "README.md"
+        registry.write_text(registry_text_v2(), encoding="utf-8")
+        registry_checkpoint = validator.sha256(registry)
 
         step.write_text(step_text(), encoding="utf-8")
         digest = validator.sha256(step)
         status.write_text(status_text(digest), encoding="utf-8")
         validator.validate(phase)
 
+        step.write_text(step_text_v2(), encoding="utf-8")
+        digest_v2 = validator.sha256(step)
+        status.write_text(
+            status_text_v2(digest_v2, registry_checkpoint),
+            encoding="utf-8",
+        )
+        validator.validate(phase)
+
+        incomplete_v2 = step_text_v2().replace(
+            "\n## Risk controls\n\n- Active packs: none.\n",
+            "",
+        )
+        step.write_text(incomplete_v2, encoding="utf-8")
+        status.write_text(
+            status_text_v2(validator.sha256(step), registry_checkpoint),
+            encoding="utf-8",
+        )
+        expect_rejected(lambda: validator.validate(phase), "## Risk controls section")
+
+        step.write_text(step_text_v2(), encoding="utf-8")
+        digest_v2 = validator.sha256(step)
+        status.write_text(
+            status_text_v2(digest_v2, registry_checkpoint, result="STALE"),
+            encoding="utf-8",
+        )
+        expect_rejected(lambda: validator.validate(phase), "not executable: STALE")
+
+        status.write_text(
+            status_text_v2("sha256:" + "0" * 64, registry_checkpoint),
+            encoding="utf-8",
+        )
+        expect_rejected(lambda: validator.validate(phase), "current STEP checkpoint mismatch")
+
+        step.write_text(step_text(), encoding="utf-8")
         incomplete = step_text().replace(
             "\n## File boundary\n\n- Modify only `example.py`.\n",
             "",
@@ -224,9 +316,9 @@ def main() -> int:
     executor_checked = validate_static_contract()
     validate_scenarios()
     if executor_checked:
-        print("PASS: planner and executor satisfy handoff schema version 1")
+        print("PASS: planner and executor satisfy handoff schemas 1 and 2")
     else:
-        print("PASS: planner handoff schema version 1 is internally consistent")
+        print("PASS: planner handoff schemas 1 and 2 are internally consistent")
         print("NOT_APPLICABLE: adjacent deliver-code-change integration was not installed")
     return 0
 

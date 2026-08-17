@@ -1,105 +1,54 @@
 # {{STEP_ID}}: {{STEP_NAME}}
 
-## Handoff contract
+## Outcome
 
-- Handoff schema version: 1
-- Reviewed repository/worktree checkpoint: {{REVIEWED_REPOSITORY_CHECKPOINT}}
-- Pre-step consistency review: PASS
+- Deliver: {{SINGLE_VERIFIABLE_OUTCOME}}
+- Out of scope: {{EXPLICIT_NON_GOAL}}
 
-The reviewed checkpoint may be a commit or an exact dirty-worktree description;
-it must match `STATUS.md`.
+## Contract references and delta
 
-## One outcome
+- Required predecessor: {{PREDECESSOR_OR_NONE}}
 
-{{SINGLE_VERIFIABLE_OUTCOME}}
+| Contract ID | This step's delta |
+|---|---|
+| `{{CONTRACT_ID}}` | {{UNCHANGED_OR_EXACT_DELTA}} |
 
-## Non-goals
-
-- {{EXPLICITLY_EXCLUDED_WORK}}
-
-## Entry conditions and verified baseline
-
-- Required predecessor: {{PREDECESSOR}}
-- Current schema/migration: {{SCHEMA_BASELINE}}
-- Stable interfaces: {{INTERFACE_BASELINE}}
-- Baseline command and result: `{{BASELINE_COMMAND}}` -> {{ACTUAL_RESULT}}
-- Git/worktree checkpoint: {{GIT_CHECKPOINT}}
+Reference stable phase contracts by ID. State only the change introduced by this
+STEP; do not copy unchanged interface definitions into this file.
 
 ## File boundary
 
-| Access | Path | Purpose |
+Delete unused rows instead of inventing filler.
+
+| Access | Path or scope | Purpose |
 |---|---|---|
-| Add | `{{PATH}}` | {{PURPOSE}} |
-| Modify | `{{PATH}}` | {{PURPOSE}} |
-| Read only | `{{PATH}}` | {{PURPOSE}} |
-| Forbidden | `{{PATH_OR_SCOPE}}` | {{REASON}} |
+| Add/modify | `{{WRITE_PATH_OR_SCOPE}}` | {{WRITE_PURPOSE}} |
+| Read only | `{{READ_ONLY_PATH_OR_SCOPE}}` | {{READ_PURPOSE}} |
+| Forbidden | `{{FORBIDDEN_PATH_OR_SCOPE}}` | {{BOUNDARY_REASON}} |
 
-Stop and report before changing a file outside this boundary.
+Stop and report before writing outside this boundary.
 
-## Contracts and invariants
+## Risk controls
 
-- Interface/data contract: {{EXACT_CONTRACT}}
-- Fact source and state transition: {{BEFORE_OPERATION_AFTER}}
-- Transaction/CAS/version rule: {{CONCURRENCY_RULE}}
-- Compatibility rule: {{COMPATIBILITY_RULE}}
-- Executable guard: {{TEST_CONSTRAINT_OR_VALIDATOR}}
+- Active packs: {{NONE_OR_COMMA_SEPARATED_BACKTICKED_PACK_NAMES}}
+- Default policy: no new external effects, persisted-data changes, public
+  compatibility changes, or trust-boundary changes unless an active pack
+  explicitly defines and tests them.
 
-## Side-effect policy
-
-- Explicitly allowed: {{ALLOWED_EFFECTS}}
-- Must be blocked in automated tests: {{BLOCKED_EFFECTS}}
-- Required fakes/patch targets: {{FAKES_AND_IMPORT_PATHS}}
-- Shared state restoration: {{REGISTRY_SINGLETON_CACHE_FIXTURE}}
-
-## Implementation order
-
-1. {{SMALLEST_SAFE_CHANGE}}
-2. {{NEXT_CHANGE}}
-3. {{MINIMAL_WIRING}}
-4. {{TESTS_BEFORE_REPORTS}}
-
-## Required pre-code rehearsal
-
-Before editing, report:
-
-1. exact files to change and why they are sufficient;
-2. entry-to-side-effect call chain;
-3. factories, fixtures, registries, singletons, caches, and environment writes involved;
-4. how each external effect is blocked in tests;
-5. three likely mistakes and the test that catches each;
-6. the exact condition at which implementation stops.
+Use `none` or comma-separated backticked names. Add only the triggered sections
+from the risk-pack table in the planner's bundled `FAILURE_PATTERNS.md`.
 
 ## Acceptance
 
-### Normal cases
+- Run from: `{{WORKDIR}}`
+- Commands: `{{EXACT_COMMANDS}}`
+- Required observations: {{CURRENT_SUCCESS_AND_FAILURE_EVIDENCE}}
 
-- {{NORMAL_TEST}}
+Record actual exit codes and results; do not copy historical counts.
 
-### Failure and adversarial cases
-
-- {{FAILURE_TEST}}
-- {{CONCURRENCY_OR_SIDE_EFFECT_TEST}}
-
-### Validation commands
-
-Run from `{{WORKDIR}}`:
-
-```text
-{{EXACT_COMMANDS}}
-```
-
-Record actual exit codes and results. Do not copy historical test counts.
-
-## Stop and degrade
+## Stop conditions
 
 - Stop when: {{STOP_CONDITION}}
-- Acceptable degradation: {{DEGRADED_PATH}}
 - Do not: {{FORBIDDEN_SHORTCUT}}
 
-## Deliverables
-
-- {{CODE_OR_MIGRATION}}
-- {{TESTS}}
-- {{EVIDENCE}}
-
-Do not update the phase status or acceptance report until these deliverables are verified.
+Do not update phase acceptance or detail the next STEP from implementation claims.
