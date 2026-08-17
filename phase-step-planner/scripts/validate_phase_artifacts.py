@@ -7,10 +7,14 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import os
 import re
+import shutil
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, NamedTuple
 
 
 STEP_PATTERN = re.compile(r"^- Current executable step:\s*`([^`]+)`\s*$", re.MULTILINE)
@@ -109,18 +113,22 @@ REQUIRED_STEP_SECTIONS_V2 = (
     "Acceptance",
     "Stop conditions",
 )
-MANIFEST_PATTERN = re.compile(
-    r"^```json[ \t]+phase-handoff[ \t]*\r?\n(?P<body>.*?)^```[ \t]*$",
-    re.MULTILINE | re.DOTALL,
+FENCE_OPEN_PATTERN = re.compile(
+    r"^ {0,3}(?P<marker>`{3,}|~{3,})(?P<info>[^\r\n]*)$"
+)
+HEADING_PATTERN = re.compile(
+    r"^(?P<marks>#{1,6})[ \t]+(?P<title>.*?)[ \t]*$",
+    re.MULTILINE,
 )
 SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 GIT_HEAD_PATTERN = re.compile(r"^[0-9a-f]{40,64}$")
 CONTRACT_ID_ROW_PATTERN = re.compile(
-    r"^\s*\|\s*`(?P<id>[A-Za-z0-9][A-Za-z0-9._:/-]*)`\s*\|",
+    r"^[ \t]{0,3}\|[ \t]*`(?P<id>[A-Za-z0-9][A-Za-z0-9._:/-]*)`[ \t]*\|",
     re.MULTILINE,
 )
 CONTRACT_ID_BULLET_PATTERN = re.compile(
-    r"^\s*-\s+(?:Contract ID|ID):\s*`(?P<id>[A-Za-z0-9][A-Za-z0-9._:/-]*)`\s*$",
+    r"^[ \t]{0,3}-[ \t]+(?:Contract ID|ID):[ \t]*"
+    r"`(?P<id>[A-Za-z0-9][A-Za-z0-9._:/-]*)`[ \t]*$",
     re.IGNORECASE | re.MULTILINE,
 )
 ACTIVE_PACKS_PATTERN = re.compile(r"^- Active packs:\s*(.+?)\s*$", re.MULTILINE)
@@ -134,8 +142,32 @@ SUPPORTED_RISK_PACKS = {
     "security-privacy",
     "shared-state",
 }
+SCHEMA_V1_DEPRECATION = (
+    "handoff schema 1 is deprecated and receives compatibility fixes only; "
+    "migrate to schema 2 before support is removed in the first breaking "
+    "release on or after 2026-12-01"
+)
 
 GitSnapshotProvider = Callable[[Path, Path, Path], dict[str, str]]
+WarningSink = Callable[[str], None]
+
+
+class FencedBlock(NamedTuple):
+    start: int
+    end: int
+    body_start: int
+    body_end: int
+    marker: str
+    info: str
+    closed: bool
+
+
+class PreparedStatus(NamedTuple):
+    status: Path
+    step: Path
+    checkpoint: str
+    original_bytes: bytes
+    updated_bytes: bytes
 
 
 def digest_bytes(path: Path) -> bytes:
@@ -177,20 +209,88 @@ def reject_unresolved_placeholders(text: str, label: str) -> None:
         )
 
 
+def fenced_blocks(text: str) -> list[FencedBlock]:
+    blocks: list[FencedBlock] = []
+    opened: tuple[int, int, str, str] | None = None
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        raw = line.rstrip("\r\n")
+        content_end = offset + len(raw)
+        line_end = offset + len(line)
+        if opened is None:
+            match = FENCE_OPEN_PATTERN.fullmatch(raw)
+            if match is not None:
+                marker = match.group("marker")
+                opened = (offset, line_end, marker, match.group("info").strip())
+        else:
+            start, body_start, marker, info = opened
+            closing = re.fullmatch(
+                rf" {{0,3}}{re.escape(marker[0])}{{{len(marker)},}}[ \t]*",
+                raw,
+            )
+            if closing is not None:
+                blocks.append(
+                    FencedBlock(
+                        start=start,
+                        end=content_end,
+                        body_start=body_start,
+                        body_end=offset,
+                        marker=marker,
+                        info=info,
+                        closed=True,
+                    )
+                )
+                opened = None
+        offset = line_end
+
+    if opened is not None:
+        start, body_start, marker, info = opened
+        blocks.append(
+            FencedBlock(
+                start=start,
+                end=len(text),
+                body_start=body_start,
+                body_end=len(text),
+                marker=marker,
+                info=info,
+                closed=False,
+            )
+        )
+    return blocks
+
+
+def without_fenced_blocks(text: str) -> str:
+    characters = list(text)
+    for block in fenced_blocks(text):
+        for index in range(block.start, block.end):
+            if characters[index] not in "\r\n":
+                characters[index] = " "
+    return "".join(characters)
+
+
 def section_body(text: str, level: int, title: str) -> str:
     marker = "#" * level
-    pattern = re.compile(
-        rf"^{re.escape(marker)}\s+{re.escape(title)}\s*$"
-        rf"(?P<body>.*?)(?=^{'#' * level}\s+|\Z)",
-        re.MULTILINE | re.DOTALL,
-    )
-    matches = list(pattern.finditer(text))
+    visible = without_fenced_blocks(text)
+    headings = list(HEADING_PATTERN.finditer(visible))
+    matches = [
+        match
+        for match in headings
+        if len(match.group("marks")) == level and match.group("title") == title
+    ]
     if len(matches) != 1:
         raise ValueError(
             f"current STEP must contain exactly one {marker} {title} section; "
             f"found {len(matches)}"
         )
-    body = matches[0].group("body").strip()
+    selected = matches[0]
+    body_end = len(text)
+    for heading in headings:
+        if heading.start() <= selected.start():
+            continue
+        if len(heading.group("marks")) <= level:
+            body_end = heading.start()
+            break
+    body = text[selected.end() : body_end].strip()
     substantive_lines = [
         line.strip()
         for line in body.splitlines()
@@ -233,7 +333,7 @@ def resolve_inside(root: Path, relative: str) -> Path:
 
 
 def contract_ids(text: str, section_title: str, label: str) -> set[str]:
-    body = section_body(text, 2, section_title)
+    body = without_fenced_blocks(section_body(text, 2, section_title))
     found = CONTRACT_ID_ROW_PATTERN.findall(body) + CONTRACT_ID_BULLET_PATTERN.findall(body)
     if not found:
         raise ValueError(
@@ -245,7 +345,7 @@ def contract_ids(text: str, section_title: str, label: str) -> set[str]:
 
 
 def validate_risk_packs(step_text: str) -> set[str]:
-    body = section_body(step_text, 2, "Risk controls")
+    body = without_fenced_blocks(section_body(step_text, 2, "Risk controls"))
     matches = ACTIVE_PACKS_PATTERN.findall(body)
     if len(matches) != 1:
         raise ValueError(
@@ -270,43 +370,57 @@ def validate_risk_packs(step_text: str) -> set[str]:
 
 def validate_v1(root: Path, text: str) -> tuple[Path, str]:
     reject_unresolved_placeholders(text, "STATUS.md")
-    phase_state = single_match(PHASE_STATE_PATTERN, text, "Phase state")
+    status_visible = without_fenced_blocks(text)
+    phase_state = single_match(PHASE_STATE_PATTERN, status_visible, "Phase state")
     if phase_state not in SUPPORTED_PHASE_STATES:
         raise ValueError(f"unsupported phase state: {phase_state}")
     if phase_state in NON_EXECUTABLE_PHASE_STATES:
         raise ValueError(f"phase state is not executable: {phase_state}")
-    relative = single_match(STEP_PATTERN, text, "Current executable step")
-    expected = single_match(CHECKPOINT_PATTERN, text, "Current STEP checkpoint")
+    relative = single_match(STEP_PATTERN, status_visible, "Current executable step")
+    expected = single_match(CHECKPOINT_PATTERN, status_visible, "Current STEP checkpoint")
     step = resolve_inside(root, relative)
     step_text = step.read_text(encoding="utf-8")
     reject_unresolved_placeholders(step_text, "current STEP")
     validate_step_structure_v1(step_text)
+    step_visible = without_fenced_blocks(step_text)
 
-    status_schema = single_match(SCHEMA_PATTERN, text, "Handoff schema version")
-    step_schema = single_match(SCHEMA_PATTERN, step_text, "Handoff schema version in STEP")
+    status_schema = single_match(SCHEMA_PATTERN, status_visible, "Handoff schema version")
+    step_schema = single_match(
+        SCHEMA_PATTERN,
+        step_visible,
+        "Handoff schema version in STEP",
+    )
     if status_schema != SUPPORTED_SCHEMA_V1 or step_schema != SUPPORTED_SCHEMA_V1:
         raise ValueError(
             f"unsupported or mixed handoff schema: STATUS={status_schema}, "
             f"STEP={step_schema}, supported={SUPPORTED_SCHEMA_V1}"
         )
 
-    result = single_match(REVIEW_RESULT_PATTERN, text, "pre-step consistency Result")
+    result = single_match(
+        REVIEW_RESULT_PATTERN,
+        status_visible,
+        "pre-step consistency Result",
+    )
     if result != "PASS":
         raise ValueError(f"pre-step consistency Result is not executable: {result}")
 
     step_review = single_match(
         STEP_REVIEW_RESULT_PATTERN,
-        step_text,
+        step_visible,
         "pre-step consistency review in STEP",
     )
     if step_review != "PASS":
         raise ValueError(f"STEP pre-step consistency review is not executable: {step_review}")
 
     status_baseline = single_match(
-        STATUS_BASELINE_PATTERN, text, "Schema/migration version"
+        STATUS_BASELINE_PATTERN,
+        status_visible,
+        "Schema/migration version",
     )
     step_baseline = single_match(
-        STEP_BASELINE_PATTERN, step_text, "Current schema/migration"
+        STEP_BASELINE_PATTERN,
+        step_visible,
+        "Current schema/migration",
     )
     if status_baseline != step_baseline:
         raise ValueError(
@@ -316,12 +430,12 @@ def validate_v1(root: Path, text: str) -> tuple[Path, str]:
 
     status_review = single_match(
         STATUS_REVIEW_CHECKPOINT_PATTERN,
-        text,
+        status_visible,
         "Repository/worktree checkpoint reviewed",
     )
     step_review = single_match(
         STEP_REVIEW_CHECKPOINT_PATTERN,
-        step_text,
+        step_visible,
         "Reviewed repository/worktree checkpoint",
     )
     if status_review != step_review:
@@ -336,10 +450,15 @@ def validate_v1(root: Path, text: str) -> tuple[Path, str]:
     return step, actual
 
 
-def phase_manifest(text: str) -> tuple[dict[str, Any], re.Match[str]] | None:
-    matches = list(MANIFEST_PATTERN.finditer(text))
+def phase_manifest(text: str) -> tuple[dict[str, Any], FencedBlock] | None:
+    blocks = fenced_blocks(text)
+    matches = [
+        block
+        for block in blocks
+        if block.closed and block.info == "json phase-handoff"
+    ]
     if not matches:
-        if "phase-handoff" in text:
+        if any("phase-handoff" in block.info.split() for block in blocks):
             raise ValueError("STATUS.md phase-handoff JSON block is malformed")
         return None
     if len(matches) != 1:
@@ -347,14 +466,14 @@ def phase_manifest(text: str) -> tuple[dict[str, Any], re.Match[str]] | None:
             "STATUS.md must contain exactly one phase-handoff JSON block; "
             f"found {len(matches)}"
         )
-    match = matches[0]
+    block = matches[0]
     try:
-        manifest = json.loads(match.group("body"))
+        manifest = json.loads(text[block.body_start : block.body_end])
     except json.JSONDecodeError as exc:
         raise ValueError(f"STATUS.md phase-handoff JSON is invalid: {exc.msg}") from exc
     if not isinstance(manifest, dict):
         raise ValueError("STATUS.md phase-handoff JSON must be an object")
-    return manifest, match
+    return manifest, block
 
 
 def required_string(mapping: dict[str, Any], key: str, label: str) -> str:
@@ -563,6 +682,7 @@ def validate(
     phase_dir: Path,
     *,
     snapshot_provider: GitSnapshotProvider | None = None,
+    warning_sink: WarningSink | None = None,
 ) -> tuple[Path, str]:
     root = phase_dir.resolve()
     status = root / "STATUS.md"
@@ -571,7 +691,10 @@ def validate(
     text = status.read_text(encoding="utf-8")
     parsed = phase_manifest(text)
     if parsed is None:
-        return validate_v1(root, text)
+        result = validate_v1(root, text)
+        if warning_sink is not None:
+            warning_sink(SCHEMA_V1_DEPRECATION)
+        return result
     manifest, _ = parsed
     return validate_v2(
         root,
@@ -582,21 +705,22 @@ def validate(
     )
 
 
-def prepare(
+def build_prepared_status(
     phase_dir: Path,
     *,
     snapshot_provider: GitSnapshotProvider | None = None,
-) -> tuple[Path, str]:
+) -> PreparedStatus:
     root = phase_dir.resolve()
     status = root / "STATUS.md"
     if not status.is_file():
         raise ValueError(f"STATUS.md is missing: {status}")
-    text = status.read_text(encoding="utf-8")
+    original_bytes = status.read_bytes()
+    text = original_bytes.decode("utf-8")
     reject_unresolved_placeholders(text, "STATUS.md")
     parsed = phase_manifest(text)
     if parsed is None:
         raise ValueError("--prepare requires a schema 2 phase-handoff JSON block")
-    manifest, match = parsed
+    manifest, manifest_block = parsed
     if manifest.get("handoff_schema") != SUPPORTED_SCHEMA_V2:
         raise ValueError("--prepare supports only phase-handoff schema 2")
     phase_state = required_string(manifest, "phase_state", "phase-handoff JSON")
@@ -611,7 +735,8 @@ def prepare(
     reject_unresolved_placeholders(step_text, "current STEP")
     validate_step_structure_v2(step_text)
     validate_risk_packs(step_text)
-    manifest["step_sha256"] = sha256(step)
+    checkpoint = sha256(step)
+    manifest["step_sha256"] = checkpoint
 
     registry_relative = required_string(
         manifest,
@@ -650,10 +775,83 @@ def prepare(
     manifest["prepared_at"] = dt.datetime.now(dt.timezone.utc).isoformat().replace(
         "+00:00", "Z"
     )
-    block = "```json phase-handoff\n" + json.dumps(manifest, indent=2) + "\n```"
-    updated = text[: match.start()] + block + text[match.end() :]
-    status.write_text(updated, encoding="utf-8")
-    return validate(root, snapshot_provider=snapshot_provider)
+    newline = "\r\n" if "\r\n" in text else "\n"
+    serialized = json.dumps(manifest, indent=2).replace("\n", newline)
+    block = f"```json phase-handoff{newline}{serialized}{newline}```"
+    updated = (
+        text[: manifest_block.start]
+        + block
+        + text[manifest_block.end :]
+    )
+    validate_v2(
+        root,
+        status,
+        updated,
+        manifest,
+        snapshot_provider=snapshot_provider,
+    )
+    return PreparedStatus(
+        status=status,
+        step=step,
+        checkpoint=checkpoint,
+        original_bytes=original_bytes,
+        updated_bytes=updated.encode("utf-8"),
+    )
+
+
+def atomic_replace_bytes(path: Path, content: bytes) -> None:
+    temporary_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as target:
+            temporary_path = Path(target.name)
+            target.write(content)
+            target.flush()
+            os.fsync(target.fileno())
+        shutil.copymode(path, temporary_path)
+        os.replace(temporary_path, path)
+        temporary_path = None
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+
+
+def prepare(
+    phase_dir: Path,
+    *,
+    snapshot_provider: GitSnapshotProvider | None = None,
+    dry_run: bool = False,
+) -> tuple[Path, str]:
+    root = phase_dir.resolve()
+    candidate = build_prepared_status(
+        root,
+        snapshot_provider=snapshot_provider,
+    )
+    if dry_run:
+        return candidate.step, candidate.checkpoint
+
+    atomic_replace_bytes(candidate.status, candidate.updated_bytes)
+    try:
+        return validate(root, snapshot_provider=snapshot_provider)
+    except Exception as validation_error:
+        try:
+            if candidate.status.read_bytes() != candidate.updated_bytes:
+                raise OSError(
+                    "STATUS.md changed concurrently after preparation; "
+                    "the original was not restored"
+                )
+            atomic_replace_bytes(candidate.status, candidate.original_bytes)
+        except OSError as rollback_error:
+            raise OSError(
+                "prepared STATUS.md failed final validation and could not be "
+                f"safely restored: {validation_error}"
+            ) from rollback_error
+        raise
 
 
 def main() -> int:
@@ -664,9 +862,16 @@ def main() -> int:
     mode.add_argument(
         "--prepare",
         metavar="PHASE_DIR",
-        help="populate a schema 2 STEP digest and live Git checkpoint, then validate",
+        help="atomically populate a schema 2 STEP digest and live Git checkpoint",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="preflight --prepare without changing STATUS.md",
     )
     args = parser.parse_args()
+    if args.dry_run and not args.prepare:
+        parser.error("--dry-run requires --prepare")
     try:
         if args.digest:
             step = Path(args.digest).resolve()
@@ -674,10 +879,17 @@ def main() -> int:
                 raise ValueError(f"STEP does not exist or is not a file: {step}")
             print(sha256(step))
         elif args.prepare:
-            step, checkpoint = prepare(Path(args.prepare))
-            print(f"PASS: prepared {step} and validated {checkpoint}")
+            step, checkpoint = prepare(Path(args.prepare), dry_run=args.dry_run)
+            action = "would prepare" if args.dry_run else "prepared"
+            print(f"PASS: {action} {step} and validated {checkpoint}")
         else:
-            step, checkpoint = validate(Path(args.phase_dir))
+            step, checkpoint = validate(
+                Path(args.phase_dir),
+                warning_sink=lambda message: print(
+                    f"WARNING: {message}",
+                    file=sys.stderr,
+                ),
+            )
             print(f"PASS: {step} has a complete handoff structure and matches {checkpoint}")
     except (OSError, UnicodeError, ValueError) as exc:
         parser.error(str(exc))

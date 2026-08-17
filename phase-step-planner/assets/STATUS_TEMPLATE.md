@@ -1,7 +1,8 @@
 # Phase {{PHASE_ID}} current status
 
 > This is the phase's single machine-readable handoff state. Edit the review
-> result and human evidence; let `--prepare` generate digests and Git facts.
+> result and human evidence; let `--prepare` generate digests and Git facts
+> after a successful `--dry-run` preflight.
 
 ```json phase-handoff
 {

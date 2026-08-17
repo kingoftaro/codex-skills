@@ -78,11 +78,27 @@ Use the assets as output templates:
 
 Keep project-specific paths, commands, architecture, and acceptance thresholds in the project artifacts, not in this Skill.
 
-The bundled templates use handoff schema 2. Existing schema 1 artifacts remain
-valid, but no schema 1 templates are distributed and new handoffs must use
-schema 2. Delete unused table rows instead of filling them with
-`N/A`. Never repeat a fact merely so that two Markdown files can agree; store
-intent once and let the validator bind generated repository facts.
+The bundled templates use handoff schema 2. Schema 1 is deprecated as of
+2026-08-17 and receives compatibility fixes only; no schema 1 templates are
+distributed and new handoffs must use schema 2. CLI validation emits a
+deprecation warning. Support will be removed in the first breaking release on
+or after 2026-12-01.
+
+Delete unused table rows instead of filling them with `N/A`. Never repeat a
+fact merely so that two Markdown files can agree; store intent once and let the
+validator bind generated repository facts.
+
+Migrate a schema 1 handoff by rebuilding STATUS and the current STEP from the
+schema 2 templates, consolidating stable contracts in the phase registry, and
+rerunning the semantic review before preparation. Do not mechanically preserve
+legacy review facts or checkpoints that have not been compared with the live
+repository.
+
+Schema 2 STEP headings, backticked contract-ID rows or ID bullets, and the
+`- Active packs:` line form a restricted Markdown protocol. Preserve their
+template labels and keep live machine metadata outside fenced examples. The
+validator ignores headings and metadata-like lines inside backtick or tilde
+fences.
 
 When the failure resembles hidden shared state, test-order dependence, accidental OS actions, stale plans, or false-green acceptance, incorporate the relevant guardrails from `references/FAILURE_PATTERNS.md` and activate the matching risk pack without copying the incident narrative into every step.
 
@@ -105,8 +121,14 @@ Extend it only with the items required by active risk packs.
 
 Never authorize the model to complete the whole phase, update a passing report before evidence exists, or silently expand the allowed file scope.
 
-For a schema 2 Git handoff, finish the semantic consistency review, set its
-result in `STATUS.md`, then run:
+For a schema 2 Git handoff, finish the semantic consistency review and set its
+result in `STATUS.md`. First preflight the complete candidate without writing:
+
+```text
+python scripts/validate_phase_artifacts.py --prepare <PHASE_DIRECTORY> --dry-run
+```
+
+Then prepare the handoff:
 
 ```text
 python scripts/validate_phase_artifacts.py --prepare <PHASE_DIRECTORY>
@@ -115,8 +137,10 @@ python scripts/validate_phase_artifacts.py --prepare <PHASE_DIRECTORY>
 Preparation verifies that every STEP contract ID exists in the phase registry,
 computes registry and STEP digests, then records HEAD and a worktree fingerprint.
 It excludes STATUS and the separately digested STEP from that fingerprint,
-writes generated facts once in the STATUS JSON block, and immediately validates
-them against live Git. A later validation run is read-only and rejects drift.
+validates the candidate in memory, atomically writes generated facts once in
+the STATUS JSON block, and immediately validates them against live Git. A final
+validation failure restores the original STATUS when no concurrent edit has
+intervened. A later validation run is read-only and rejects drift.
 For a non-Git repository, use manual checkpoint mode and compare its immutable
 checkpoint separately. Never use manual mode merely to bypass an available Git
 failure.

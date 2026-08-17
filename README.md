@@ -109,9 +109,15 @@ python .\deliver-code-change\scripts\validate_skill.py .\deliver-code-change
 python .\deliver-code-change\scripts\validate_skill.py .\phase-step-planner
 ```
 
-Prepare a new schema 2 Git handoff after its semantic consistency review. This
-single command writes the STEP digest and live Git snapshot into `STATUS.md`,
-then validates the result:
+Preflight a new schema 2 Git handoff after its semantic consistency review.
+This validates the complete candidate without changing `STATUS.md`:
+
+```powershell
+python .\phase-step-planner\scripts\validate_phase_artifacts.py --prepare <phase-directory> --dry-run
+```
+
+Then atomically write the STEP digest and live Git snapshot into `STATUS.md`
+and validate the result:
 
 ```powershell
 python .\phase-step-planner\scripts\validate_phase_artifacts.py --prepare <phase-directory>
@@ -123,14 +129,20 @@ Revalidate an existing handoff without changing it:
 python .\phase-step-planner\scripts\validate_phase_artifacts.py <phase-directory>
 ```
 
+Preparation validates the candidate in memory and restores the original
+`STATUS.md` if final validation fails without an intervening concurrent edit.
 Schema 2 keeps machine facts once in a JSON block in `STATUS.md`, binds the
 phase contract registry and current STEP by digest, rejects STEP contract IDs
 that are absent from the registry, and compares recorded HEAD and worktree
 fingerprints with live Git. The worktree fingerprint excludes STATUS and the
 digested STEP to avoid a self-referential snapshot. Manual repository mode is available for
-non-Git projects and requires an independent repository comparison. Existing
-schema 1 handoffs remain valid but retain their legacy cross-document checks
-and do not gain live Git validation.
+non-Git projects and requires an independent repository comparison. Schema 2
+uses a restricted Markdown protocol for required STEP headings, contract IDs,
+and active risk packs; fenced examples are ignored by those checks. Schema 1 is
+deprecated as of 2026-08-17, receives compatibility fixes only, and will be
+removed in the first breaking release on or after 2026-12-01. Until removal,
+CLI validation emits a deprecation warning; schema 1 retains its legacy
+cross-document checks and does not gain live Git validation.
 
 Run both regression test suites:
 

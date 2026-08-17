@@ -256,6 +256,12 @@ class PhaseArtifactValidationTests(unittest.TestCase):
         self.write_handoff(extra_step="- Application example: {{USER_NAME}}\n")
         VALIDATOR.validate(self.phase)
 
+    def test_schema1_reports_deprecation_to_explicit_sink(self) -> None:
+        self.write_handoff()
+        notices: list[str] = []
+        VALIDATOR.validate(self.phase, warning_sink=notices.append)
+        self.assertEqual(notices, [VALIDATOR.SCHEMA_V1_DEPRECATION])
+
 
 class PhaseArtifactValidationV2Tests(unittest.TestCase):
     def setUp(self) -> None:
@@ -287,6 +293,21 @@ class PhaseArtifactValidationV2Tests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+
+    def write_unprepared_git_handoff(self) -> bytes:
+        self.step.write_text(step_text_v2(), encoding="utf-8")
+        self.status.write_text(
+            status_text_v2(
+                "AUTO",
+                repository={
+                    "mode": "git",
+                    "head": "AUTO",
+                    "worktree_sha256": "AUTO",
+                },
+            ),
+            encoding="utf-8",
+        )
+        return self.status.read_bytes()
 
     def assert_rejected(self, expected: str, **kwargs: object) -> None:
         with self.assertRaisesRegex(ValueError, expected):
@@ -323,6 +344,56 @@ class PhaseArtifactValidationV2Tests(unittest.TestCase):
         self.status.write_text(status_text_v2(VALIDATOR.sha256(self.step)), encoding="utf-8")
         self.assert_rejected("exactly one ## Risk controls section")
 
+    def test_fenced_heading_does_not_satisfy_required_structure(self) -> None:
+        self.write_handoff()
+        text = self.step.read_text(encoding="utf-8").replace(
+            "\n## Risk controls\n\n- Active packs: none.\n",
+            "\n```markdown\n## Risk controls\n\n- Active packs: none.\n```\n",
+        )
+        self.step.write_text(text, encoding="utf-8")
+        self.status.write_text(status_text_v2(VALIDATOR.sha256(self.step)), encoding="utf-8")
+        self.assert_rejected("exactly one ## Risk controls section")
+
+    def test_fenced_contract_id_is_not_machine_metadata(self) -> None:
+        self.write_handoff()
+        text = self.step.read_text(encoding="utf-8").replace(
+            "| `INV-01` | unchanged |\n",
+            "```markdown\n| `INV-01` | unchanged |\n```\n",
+        )
+        self.step.write_text(text, encoding="utf-8")
+        self.status.write_text(status_text_v2(VALIDATOR.sha256(self.step)), encoding="utf-8")
+        self.assert_rejected("must reference at least one backticked contract ID")
+
+    def test_indented_code_contract_id_is_not_machine_metadata(self) -> None:
+        self.write_handoff()
+        text = self.step.read_text(encoding="utf-8").replace(
+            "| `INV-01` | unchanged |\n",
+            "    | `INV-01` | unchanged |\n",
+        )
+        self.step.write_text(text, encoding="utf-8")
+        self.status.write_text(status_text_v2(VALIDATOR.sha256(self.step)), encoding="utf-8")
+        self.assert_rejected("must reference at least one backticked contract ID")
+
+    def test_fenced_active_packs_line_is_not_machine_metadata(self) -> None:
+        self.write_handoff()
+        text = self.step.read_text(encoding="utf-8").replace(
+            "- Active packs: none.\n",
+            "~~~text\n- Active packs: none.\n~~~\n",
+        )
+        self.step.write_text(text, encoding="utf-8")
+        self.status.write_text(status_text_v2(VALIDATOR.sha256(self.step)), encoding="utf-8")
+        self.assert_rejected("exactly one '- Active packs:' line")
+
+    def test_nested_manifest_example_is_not_treated_as_live_status(self) -> None:
+        example = (
+            "````markdown\n"
+            "```json phase-handoff\n"
+            "{}\n"
+            "```\n"
+            "````\n"
+        )
+        self.assertIsNone(VALIDATOR.phase_manifest(example))
+
     def test_template_placeholder_is_rejected(self) -> None:
         self.write_handoff(extra_step="\n- Pending: {{EXACT_COMMANDS}}\n")
         self.assert_rejected("unresolved bundled template placeholders")
@@ -348,18 +419,7 @@ class PhaseArtifactValidationV2Tests(unittest.TestCase):
             outside.unlink(missing_ok=True)
 
     def test_prepare_populates_digest_and_git_snapshot_without_processes(self) -> None:
-        self.step.write_text(step_text_v2(), encoding="utf-8")
-        self.status.write_text(
-            status_text_v2(
-                "AUTO",
-                repository={
-                    "mode": "git",
-                    "head": "AUTO",
-                    "worktree_sha256": "AUTO",
-                },
-            ),
-            encoding="utf-8",
-        )
+        self.write_unprepared_git_handoff()
         snapshot = {
             "head": "a" * 40,
             "worktree_sha256": "sha256:" + "b" * 64,
@@ -445,6 +505,95 @@ class PhaseArtifactValidationV2Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not executable: STALE"):
             VALIDATOR.prepare(self.phase)
         self.assertEqual(self.status.read_bytes(), before)
+
+    def test_prepare_dry_run_validates_without_mutation(self) -> None:
+        before = self.write_unprepared_git_handoff()
+        snapshot = {
+            "head": "a" * 40,
+            "worktree_sha256": "sha256:" + "b" * 64,
+        }
+        calls = 0
+
+        def stable_snapshot(_phase: Path, _status: Path, _step: Path) -> dict[str, str]:
+            nonlocal calls
+            calls += 1
+            return snapshot.copy()
+
+        step, digest = VALIDATOR.prepare(
+            self.phase,
+            snapshot_provider=stable_snapshot,
+            dry_run=True,
+        )
+        self.assertEqual(step, self.step)
+        self.assertEqual(digest, VALIDATOR.sha256(self.step))
+        self.assertEqual(self.status.read_bytes(), before)
+        self.assertEqual(calls, 2)
+
+    def test_prepare_preflight_drift_does_not_mutate_status(self) -> None:
+        before = self.write_unprepared_git_handoff()
+        snapshots = iter(
+            (
+                {
+                    "head": "a" * 40,
+                    "worktree_sha256": "sha256:" + "b" * 64,
+                },
+                {
+                    "head": "a" * 40,
+                    "worktree_sha256": "sha256:" + "c" * 64,
+                },
+            )
+        )
+
+        def drifting_snapshot(_phase: Path, _status: Path, _step: Path) -> dict[str, str]:
+            return next(snapshots)
+
+        with self.assertRaisesRegex(ValueError, "live Git worktree mismatch"):
+            VALIDATOR.prepare(self.phase, snapshot_provider=drifting_snapshot)
+        self.assertEqual(self.status.read_bytes(), before)
+
+    def test_prepare_rolls_back_when_final_validation_detects_drift(self) -> None:
+        before = self.write_unprepared_git_handoff()
+        stable = {
+            "head": "a" * 40,
+            "worktree_sha256": "sha256:" + "b" * 64,
+        }
+        changed = {
+            "head": "a" * 40,
+            "worktree_sha256": "sha256:" + "c" * 64,
+        }
+        snapshots = iter((stable, stable, changed))
+
+        def drifting_snapshot(_phase: Path, _status: Path, _step: Path) -> dict[str, str]:
+            return next(snapshots).copy()
+
+        with self.assertRaisesRegex(ValueError, "live Git worktree mismatch"):
+            VALIDATOR.prepare(self.phase, snapshot_provider=drifting_snapshot)
+        self.assertEqual(self.status.read_bytes(), before)
+        self.assertEqual(list(self.phase.glob(".STATUS.md.*.tmp")), [])
+
+    def test_prepare_does_not_overwrite_concurrent_status_edit_on_failure(self) -> None:
+        self.write_unprepared_git_handoff()
+        stable = {
+            "head": "a" * 40,
+            "worktree_sha256": "sha256:" + "b" * 64,
+        }
+        changed = {
+            "head": "a" * 40,
+            "worktree_sha256": "sha256:" + "c" * 64,
+        }
+        calls = 0
+
+        def concurrent_edit(_phase: Path, status: Path, _step: Path) -> dict[str, str]:
+            nonlocal calls
+            calls += 1
+            if calls == 3:
+                status.write_text("concurrent edit\n", encoding="utf-8")
+                return changed.copy()
+            return stable.copy()
+
+        with self.assertRaisesRegex(OSError, "could not be safely restored"):
+            VALIDATOR.prepare(self.phase, snapshot_provider=concurrent_edit)
+        self.assertEqual(self.status.read_text(encoding="utf-8"), "concurrent edit\n")
 
     def test_git_fingerprint_uses_content_and_excludes_generated_handoff(self) -> None:
         self.step.write_text(step_text_v2(), encoding="utf-8")

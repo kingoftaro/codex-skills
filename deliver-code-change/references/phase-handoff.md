@@ -5,7 +5,7 @@ Use this mode only when a phase planner has produced an applicable `STATUS.md` a
 ## Validate the handoff
 
 1. Read applicable user instructions and `AGENTS.md` files first.
-2. Accept handoff schema `1` or `2`; stop on any other version. Schema 2 is the preferred low-duplication format. It stores machine facts once in the `phase-handoff` JSON block in `STATUS.md`; the STEP does not repeat them. Schema 1 remains a legacy cross-document format.
+2. Accept handoff schema `1` or `2`; stop on any other version. Schema 2 is the preferred low-duplication format. It stores machine facts once in the `phase-handoff` JSON block in `STATUS.md`; the STEP does not repeat them. Schema 1 is deprecated, receives compatibility fixes only, and will be removed in the first breaking release on or after 2026-12-01.
 3. Confirm that `STATUS.md` identifies exactly one current executable STEP, records a `PASS` consistency result, and is not terminal. `STALE` and `BLOCKED` are not executable. Phase states `development complete` and `accepted` are not executable; `release blocked` is executable only when STATUS intentionally identifies a remediation STEP.
 4. Verify that the STEP path is relative, exists inside the phase directory, and matches the detailed step in the phase index when present.
 5. Use `phase-step-planner/scripts/validate_phase_artifacts.py <phase-dir>` when available. It verifies the contract-registry and STEP digests, rejects unknown contract IDs and unresolved bundled template placeholders, and, for schema 2 Git mode, compares the recorded HEAD and worktree fingerprint with live Git. Never run `--prepare` as the executor; preparation mutates and rebinds the handoff and belongs to the planner.

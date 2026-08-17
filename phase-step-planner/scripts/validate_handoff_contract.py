@@ -156,6 +156,7 @@ def validate_static_contract() -> bool:
             '"contract_registry_sha256": "AUTO"',
             '"mode": "git"',
             "let `--prepare` generate digests and Git facts",
+            "`--dry-run` preflight",
         ),
         PLANNER / "assets" / "STATUS_TEMPLATE.md",
     )
@@ -180,6 +181,7 @@ def validate_static_contract() -> bool:
             "handoff schema `1` or `2`",
             "schema 2",
             "schema 1",
+            "deprecated",
             "live Git",
             "`STALE` and `BLOCKED` are not executable",
             "`development complete` and `accepted` are not executable",

@@ -107,13 +107,27 @@ python .\deliver-code-change\scripts\validate_skill.py .\deliver-code-change
 python .\deliver-code-change\scripts\validate_skill.py .\phase-step-planner
 ```
 
-验证生成的阶段交接文件的结构完整性、跨文档事实和 STEP 摘要：
+完成语义一致性审查后，先预检新的 schema 2 Git 交接。该命令会验证完整候选内容，但不会改写 `STATUS.md`：
+
+```powershell
+python .\phase-step-planner\scripts\validate_phase_artifacts.py --prepare <阶段目录> --dry-run
+```
+
+然后以原子方式把 STEP 摘要和实时 Git 快照写入 `STATUS.md`，并验证结果：
+
+```powershell
+python .\phase-step-planner\scripts\validate_phase_artifacts.py --prepare <阶段目录>
+```
+
+只读地重新验证现有交接：
 
 ```powershell
 python .\phase-step-planner\scripts\validate_phase_artifacts.py <阶段目录>
 ```
 
-该 validator 会确认 STATUS 和 STEP 记录了相同的已审查 checkpoint，但不会检查实时 Git 工作树。实施前仍需将记录值与仓库现状进行比较。
+准备操作会先在内存中验证候选内容；如果最终验证失败且期间没有并发编辑，则恢复原始 `STATUS.md`。schema 2 把机器事实集中保存在 `STATUS.md` 的 JSON 块中，通过摘要绑定阶段契约注册表和当前 STEP，拒绝注册表中不存在的 STEP 契约 ID，并把记录的 HEAD 与工作树指纹同实时 Git 比较。工作树指纹会排除 STATUS 和单独计算摘要的 STEP，避免自引用。非 Git 项目可使用 manual repository 模式，但必须独立比较仓库状态。
+
+schema 2 对必需的 STEP 标题、契约 ID 和 active risk packs 使用受限 Markdown 协议；围栏代码示例不会被当作机器元数据。schema 1 自 2026-08-17 起弃用，只接收兼容性修复，并将在不早于 2026-12-01 的首次破坏性发布中移除。在移除前，CLI 校验会输出弃用警告；schema 1 保留旧式跨文档检查，但不会获得实时 Git 校验。
 
 运行两个回归测试套件：
 
