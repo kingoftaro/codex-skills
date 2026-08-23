@@ -8,7 +8,6 @@ import ast
 import re
 from pathlib import Path
 
-
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 
@@ -28,11 +27,50 @@ def frontmatter(content: str) -> tuple[dict[str, str], list[str]]:
             failures.append(f"invalid frontmatter line: {line}")
             continue
         key, value = line.split(":", 1)
-        values[key.strip()] = value.strip()
+        key = key.strip()
+        if key in values:
+            failures.append(f"duplicate frontmatter key: {key}")
+            continue
+        values[key] = value.strip()
     unexpected = sorted(set(values) - {"name", "description"})
     if unexpected:
         failures.append(f"unexpected frontmatter keys: {unexpected}")
     return values, failures
+
+
+def openai_interface(content: str, failures: list[str]) -> dict[str, str]:
+    lines = content.splitlines()
+    interface_lines = [index for index, line in enumerate(lines) if line == "interface:"]
+    if len(interface_lines) != 1:
+        failures.append(
+            f"agents/openai.yaml must contain exactly one top-level interface block, "
+            f"found {len(interface_lines)}"
+        )
+        return {}
+
+    values: dict[str, str] = {}
+    for line in lines[interface_lines[0] + 1 :]:
+        if not line.strip():
+            continue
+        if not line.startswith(" "):
+            break
+        match = re.fullmatch(r"  ([a-z][a-z0-9_]*):\s*(.+?)\s*", line)
+        if match is None:
+            failures.append(f"invalid interface field line: {line}")
+            continue
+        key, raw_value = match.groups()
+        if key in values:
+            failures.append(f"duplicate interface field: {key}")
+            continue
+        try:
+            value = ast.literal_eval(raw_value)
+        except (SyntaxError, ValueError):
+            value = raw_value
+        if not isinstance(value, str) or not value.strip():
+            failures.append(f"interface field {key} must be a non-empty string")
+            continue
+        values[key] = value
+    return values
 
 
 def validate(root: Path) -> list[str]:
@@ -76,10 +114,17 @@ def validate(root: Path) -> list[str]:
         failures.append("agents/openai.yaml is missing")
     else:
         agents_text = agents_yaml.read_text(encoding="utf-8")
-        for key in ("display_name:", "short_description:", "default_prompt:"):
-            if key not in agents_text:
-                failures.append(f"agents/openai.yaml missing {key[:-1]}")
-        if f"${name}" not in agents_text:
+        interface = openai_interface(agents_text, failures)
+        for key in ("display_name", "short_description", "default_prompt"):
+            if key not in interface:
+                failures.append(f"agents/openai.yaml missing interface.{key}")
+        short_description = interface.get("short_description", "")
+        if short_description and not 25 <= len(short_description) <= 64:
+            failures.append(
+                "interface.short_description must contain 25-64 characters: "
+                f"{len(short_description)}"
+            )
+        if f"${name}" not in interface.get("default_prompt", ""):
             failures.append("default_prompt must mention the skill explicitly")
 
     for script in sorted((root / "scripts").glob("*.py")):

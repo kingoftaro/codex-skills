@@ -9,17 +9,20 @@
 | Skill | 职责 | 适用场景 |
 |---|---|---|
 | [`phase-step-planner`](phase-step-planner/) | 审计大型阶段、拆分可独立验收的步骤、维护单一状态快照并准备安全交接 | 工作跨越多个验收门、会话或实施模型 |
-| [`deliver-code-change`](deliver-code-change/) | 实现、验证并交付一个有界代码改动 | 已经明确的 bug 修复、功能调整、重构、接口变更或当前 phase STEP |
+| [`deliver-code-change`](deliver-code-change/) | 实现、验证并交付一个有界代码改动 | 行为、消费者、不确定性或验证深度值得启用专门流程，或者当前 phase STEP 已可执行 |
 
 ## 协作方式
 
 ```text
+微小、局部、低风险修改
+  -> 直接遵循仓库规则完成
+
 phase-step-planner
   -> 审计仓库证据
   -> 冻结当前 STEP 及其 checkpoint
 
 deliver-code-change
-  -> 校验 handoff
+  -> 校验交接
   -> 只实现当前有界 STEP
   -> 返回代码和验证证据
 
@@ -28,7 +31,10 @@ phase-step-planner
   -> 更新 STATUS 并准备下一 STEP
 ```
 
-独立的小型改动可以直接使用 `deliver-code-change`。多阶段工作应先使用 `phase-step-planner`，然后一次执行并验收一个步骤。
+微小、局部、低风险修改应直接遵循适用的仓库规则完成，不加载 skill，
+也不创建流程文档。一个有界改动只有在行为、消费者、不确定性或验证深度
+值得启用专门实施流程时才使用 `deliver-code-change`。多阶段工作应先使用
+`phase-step-planner`，然后一次执行并验收一个步骤。
 
 ## 仓库结构
 
@@ -68,46 +74,66 @@ Copy-Item -Recurse .\codex-skills\phase-step-planner "$env:USERPROFILE\.codex\sk
 
 ## 使用示例
 
-实现一个有界改动：
+实现一个非琐碎的有界改动：
 
 ```text
-Use $deliver-code-change to implement and verify this bounded code change without expanding its approved scope.
+Use $deliver-code-change for this non-trivial bounded code change; implement and verify it without expanding scope.
 ```
 
 规划或恢复一个大型阶段：
 
 ```text
-Use $phase-step-planner to audit this phase and prepare the next bounded implementation step.
+Use $phase-step-planner to audit this multi-stage phase and prepare one bounded executable step.
 ```
 
 ## 验证
 
-使用 Python 标准库验证 `deliver-code-change`：
+先选择显式 Python 解释器，不依赖 `PATH`：
 
 ```powershell
-python .\deliver-code-change\scripts\validate_skill.py .\deliver-code-change
+$SkillsPython = 'C:\absolute\path\to\python.exe'
 ```
 
-运行 `phase-step-planner` 的隔离测试：
+使用 Python 标准库验证两个 skill：
+
+```powershell
+& $SkillsPython .\deliver-code-change\scripts\validate_skill.py .\deliver-code-change
+& $SkillsPython .\deliver-code-change\scripts\validate_skill.py .\phase-step-planner
+```
+
+运行验证器和恢复状态管理的隔离测试：
 
 ```powershell
 Push-Location .\phase-step-planner\scripts
-python -m unittest -v test_validate_phase_artifacts.py
+& $SkillsPython -B -m unittest -v test_validate_phase_artifacts.py
+Pop-Location
+Push-Location .\deliver-code-change\scripts
+& $SkillsPython -B -m unittest -v test_manage_state.py test_validate_skill.py
 Pop-Location
 ```
 
 验证生成的 phase 文档：
 
 ```powershell
-python .\phase-step-planner\scripts\validate_phase_artifacts.py <phase-directory>
+& $SkillsPython .\phase-step-planner\scripts\validate_phase_artifacts.py <phase-directory>
 ```
 
-这些验证和测试只读取本地文件，不需要网络访问。
+验证跨 skill 的路由/交接声明与对抗性测试夹具：
+
+```powershell
+& $SkillsPython .\phase-step-planner\scripts\validate_handoff_contract.py
+```
+
+这些验证和测试只使用本地文件，不需要网络访问。随附的阶段验证器返回
+`PASS`，只能证明结构与内部一致性，不能替代语义复审或绑定实时仓库状态的
+项目本地验证器。
 
 ## 设计原则
 
 - 仓库证据优先于模型总结和陈旧报告。
+- 使用与不确定性和风险匹配的最小流程；微小修改不需要 skill。
 - 每次只实现一个有界结果。
+- 连续修复回归应触发根因审查，而不是自动增加 STEP。
 - 文件范围和外部副作用必须明确。
 - 自动化测试必须隔离浏览器、进程、通知、网络和真实用户数据副作用。
 - 验证结果只使用 `PASS`、`FAIL`、`BLOCKED` 或 `NOT_APPLICABLE`，不把弱证据升级成通过。

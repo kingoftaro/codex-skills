@@ -12,6 +12,7 @@
 
 ## Entry conditions and verified baseline
 
+- Handoff schema: 1
 - Required predecessor: {{PREDECESSOR}}
 - Current schema/migration: {{SCHEMA_BASELINE}}
 - Stable interfaces: {{INTERFACE_BASELINE}}
@@ -55,13 +56,15 @@ Stop and report before changing a file outside this boundary.
 
 ## Required pre-code rehearsal
 
-Before editing, report:
+Before editing, report with detail proportional to the STEP risk. For a Fast
+phase STEP, combine items 2-5 into a concise boundary statement when the named
+mechanisms or effects are absent; do not invent filler risks.
 
 1. exact files to change and why they are sufficient;
 2. entry-to-side-effect call chain;
 3. factories, fixtures, registries, singletons, caches, and environment writes involved;
 4. how each external effect is blocked in tests;
-5. three likely mistakes and the test that catches each;
+5. up to three material mistakes and the test that catches each;
 6. the exact condition at which implementation stops.
 
 ## Acceptance

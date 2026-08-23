@@ -7,17 +7,102 @@ import argparse
 import json
 import os
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-
 ROUTES = ("Fast", "Standard", "High-risk")
 STATUSES = ("in_progress", "completed")
+SCHEMA_VERSION = 1
+STATE_KEYS = {
+    "schema_version",
+    "task_id",
+    "route",
+    "status",
+    "current_step",
+    "completed_steps",
+    "changed_files",
+    "verification",
+    "resume_hint",
+    "created_at",
+    "updated_at",
+}
 
 
 def timestamp() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def parse_utc_timestamp(value: Any, label: str, errors: list[str]) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        errors.append(f"{label} must be a non-empty UTC ISO 8601 string")
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        errors.append(f"{label} must be valid UTC ISO 8601")
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() != timedelta(0):
+        errors.append(f"{label} must use UTC offset +00:00")
+        return None
+    return parsed
+
+
+def validate_string_list(value: Any, label: str, errors: list[str]) -> None:
+    if not isinstance(value, list):
+        errors.append(f"{label} must be a list")
+        return
+    valid_items = all(isinstance(item, str) and item for item in value)
+    if not valid_items:
+        errors.append(f"{label} must contain only non-empty strings")
+    elif len(value) != len(set(value)):
+        errors.append(f"{label} must not contain duplicates")
+
+
+def validate_state(data: dict[str, Any]) -> None:
+    errors: list[str] = []
+    keys = set(data)
+    missing = sorted(STATE_KEYS - keys)
+    unknown = sorted(keys - STATE_KEYS)
+    if missing:
+        errors.append(f"missing fields: {', '.join(missing)}")
+    if unknown:
+        errors.append(f"unknown fields: {', '.join(unknown)}")
+
+    schema_version = data.get("schema_version")
+    if isinstance(schema_version, bool) or schema_version != SCHEMA_VERSION:
+        errors.append(
+            f"unsupported schema_version: {schema_version!r}; supported={SCHEMA_VERSION}"
+        )
+    for label in ("task_id", "current_step"):
+        value = data.get(label)
+        if not isinstance(value, str) or not value:
+            errors.append(f"{label} must be a non-empty string")
+    if not isinstance(data.get("resume_hint"), str):
+        errors.append("resume_hint must be a string")
+
+    route = data.get("route")
+    if route not in ROUTES:
+        errors.append(f"invalid route: {route!r}")
+    status = data.get("status")
+    if status not in STATUSES:
+        errors.append(f"invalid status: {status!r}")
+    current_step = data.get("current_step")
+    if status == "completed" and current_step != "complete":
+        errors.append("completed state must use current_step `complete`")
+    if status == "in_progress" and current_step == "complete":
+        errors.append("in_progress state must not use current_step `complete`")
+
+    for label in ("completed_steps", "changed_files", "verification"):
+        validate_string_list(data.get(label), label, errors)
+
+    created_at = parse_utc_timestamp(data.get("created_at"), "created_at", errors)
+    updated_at = parse_utc_timestamp(data.get("updated_at"), "updated_at", errors)
+    if created_at is not None and updated_at is not None and updated_at < created_at:
+        errors.append("updated_at must not precede created_at")
+
+    if errors:
+        raise ValueError("invalid state: " + "; ".join(errors))
 
 
 def load_state(path: Path) -> dict[str, Any]:
@@ -28,11 +113,13 @@ def load_state(path: Path) -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         raise ValueError(f"invalid JSON in state file {path}: {exc}") from exc
     if not isinstance(data, dict):
-        raise ValueError("state must be a JSON object")
+        raise TypeError("state must be a JSON object")
+    validate_state(data)
     return data
 
 
 def write_atomic(path: Path, state: dict[str, Any]) -> None:
+    validate_state(state)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(state, indent=2, ensure_ascii=False) + "\n"
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
@@ -59,7 +146,7 @@ def unique_append(values: list[str], additions: list[str]) -> list[str]:
 def initialize(args: argparse.Namespace) -> dict[str, Any]:
     now = timestamp()
     return {
-        "schema_version": 1,
+        "schema_version": SCHEMA_VERSION,
         "task_id": args.task_id,
         "route": args.route,
         "status": "in_progress",
@@ -76,6 +163,8 @@ def initialize(args: argparse.Namespace) -> dict[str, Any]:
 def update(args: argparse.Namespace, complete_task: bool = False) -> dict[str, Any]:
     path = Path(args.file)
     state = load_state(path)
+    if state["status"] == "completed":
+        raise ValueError("completed state is immutable; initialize a new state file")
     if args.step is not None:
         state["current_step"] = args.step
     state["completed_steps"] = unique_append(state.get("completed_steps", []), args.complete or [])
@@ -86,9 +175,8 @@ def update(args: argparse.Namespace, complete_task: bool = False) -> dict[str, A
     if complete_task:
         state["status"] = "completed"
         state["current_step"] = "complete"
-    elif state.get("status") not in STATUSES:
-        state["status"] = "in_progress"
     state["updated_at"] = timestamp()
+    validate_state(state)
     return state
 
 
@@ -139,7 +227,7 @@ def main() -> int:
             write_atomic(path, state)
         else:
             state = load_state(path)
-    except ValueError as exc:
+    except (TypeError, ValueError) as exc:
         parser.error(str(exc))
     print(json.dumps(state, indent=2, ensure_ascii=False))
     return 0

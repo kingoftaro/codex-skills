@@ -32,7 +32,10 @@ Read only the patterns relevant to the current phase or step. Convert each selec
 
 **Typical cause:** The phase document is read without auditing code, migrations, tests, untracked files, and retained evidence.
 
-**Required guards:** Audit before status generation; distinguish scaffolded, implemented, tested, accepted, and release-ready; stop when code reality contradicts the step.
+**Required guards:** Audit before status generation; distinguish scaffolded,
+implemented, tested, accepted, and release-ready; record observed repository
+state separately from intended contracts; keep the handoff `STALE` or
+`BLOCKED` until a material contradiction is resolved.
 
 ## Shared state and test-order dependence
 
@@ -49,3 +52,17 @@ Read only the patterns relevant to the current phase or step. Convert each selec
 **Typical cause:** Documentation is treated as an implementation deliverable rather than the final result of verification.
 
 **Required guards:** Generate claims from the current run; record exact commands and results; update status and reports only after all required evidence exists; distinguish development complete, accepted, and release-ready.
+
+## Symptom patch creates an adjacent regression
+
+**Signal:** The reported defect disappears, but a neighboring contract path
+breaks during the next review, and each repair appears to create another repair.
+
+**Typical cause:** The patch implements a visible symptom instead of the
+governing invariant, while verification reruns only the original reproduction.
+
+**Required guards:** Treat this as a repair-loop signal and read
+[repair-loop.md](repair-loop.md) before another implementation patch or STEP
+change. Record the original reproduction, governing invariant, suspected fault
+locus, affected neighboring paths, repair round, and closure evidence in the
+existing STATUS risk entry; do not create a second issue tracker.

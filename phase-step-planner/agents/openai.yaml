@@ -1,4 +1,4 @@
 interface:
   display_name: "Phase Step Planner"
   short_description: "Split large phases into verified implementation steps"
-  default_prompt: "Use $phase-step-planner to audit this phase and prepare the next bounded implementation step."
+  default_prompt: "Use $phase-step-planner to audit this multi-stage phase and prepare one bounded executable step."

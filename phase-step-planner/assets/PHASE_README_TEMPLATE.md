@@ -30,7 +30,13 @@ This file describes order and dependencies. It does not claim that a step is com
 
 ## Progression rule
 
-At most one step may be `detailed`, and it must match the current executable step in `STATUS.md`. Only that step may be implemented. Verify it and update `STATUS.md` before detailing or starting its successor. If repository reality contradicts a step, revise the step from evidence rather than improvising in code.
+At most one step may be `detailed`, and it must match the current executable
+step in `STATUS.md`. Only a handoff whose review result and authoritative
+validator are both `PASS` may be implemented. Verify it and update `STATUS.md`
+before detailing or starting its successor. If observed repository state and
+intended contracts disagree, keep the handoff `STALE` or `BLOCKED` until the
+contradiction is resolved; do not let either source silently redefine the
+other.
 
 ## Final phase gates
 

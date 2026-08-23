@@ -4,6 +4,20 @@ Choose a route from evidence, not from a predicted file count alone.
 
 Route only one bounded change. When a request needs multiple independently accepted steps, phase-wide status management, or re-detailing of later work, hand it to `phase-step-planner` before implementation. A phase STEP may still be Fast, Standard, or High-risk; phase size and implementation risk are separate decisions.
 
+## Direct-edit gate
+
+This Skill should not be invoked for a trivial edit when all of these are true:
+
+- no applicable phase handoff exists;
+- the change is local, obvious, reversible, and its consumers are known;
+- no shared contract, dependency, configuration, persisted data, or schema changes;
+- no security, authorization, privacy, money, concurrency, destructive behavior, or external side effect;
+- one focused repository-native check provides proportionate confidence.
+
+Examples include documentation, comments, formatting, labels, and similarly
+obvious low-risk corrections. If the Skill is already active, handle such work
+as Fast without process artifacts or additional references.
+
 ## Decision order
 
 1. Select High-risk when any High-risk trigger applies.

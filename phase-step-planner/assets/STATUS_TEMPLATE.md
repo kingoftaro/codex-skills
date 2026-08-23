@@ -12,12 +12,27 @@
 
 ## Artifact binding
 
+- Handoff schema: 1
+- Review result: PASS / STALE / BLOCKED / NOT_APPLICABLE
+- Repair loop: `{"state":"inactive","invariant_id":"none","consecutive_regressions":0,"last_classification":"none","evidence":"none"}`
 - Phase index: `README.md`
 - Current executable step: `{{CURRENT_STEP_DOCUMENT}}`
 - Current step specification checkpoint: `sha256:{{CURRENT_STEP_SHA256}}`
 - Audited against repository checkpoint: `{{AUDITED_REPOSITORY_CHECKPOINT}}`
 
-For an `accepted` or `release-ready` phase with no active step, use `none` for the current executable step, `not-applicable` for its checkpoint, and leave no step marked `detailed` in `README.md`.
+For an active handoff, use `PASS` only after semantic consistency review and
+validation. `STALE` and `BLOCKED` are deliberately non-executable. For an
+`accepted` or `release-ready` phase with no active step, use `NOT_APPLICABLE`
+for the review result, `none` for the current executable step,
+`not-applicable` for its checkpoint, and leave no step marked `detailed` in
+`README.md`.
+
+The `Repair loop` JSON is the machine-readable snapshot for the current
+governing invariant. Use `observing` after the first material
+repair-introduced regression, `blocked` after the second consecutive one, and
+`reset` only after an evidence-backed root-cause review establishes a corrected
+boundary. Terminal phases use `inactive`; keep detailed history in the risk
+table instead of expanding this snapshot.
 
 ## Position
 
