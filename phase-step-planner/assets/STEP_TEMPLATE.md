@@ -1,5 +1,7 @@
 # {{STEP_ID}}: {{STEP_NAME}}
 
+> Non-executable draft: defer review, checkpoint, and validation until handoff.
+
 ## One outcome
 
 {{SINGLE_VERIFIABLE_OUTCOME}}
@@ -13,9 +15,9 @@
 ## Entry conditions and verified baseline
 
 - Handoff schema: 1
+- Review route: {{FAST_STANDARD_OR_HIGH_RISK}}
 - Required predecessor: {{PREDECESSOR}}
-- Current schema/migration: {{SCHEMA_BASELINE}}
-- Stable interfaces: {{INTERFACE_BASELINE}}
+- Relevant code, interface, schema, or migration baseline: {{RELEVANT_BASELINE}}
 - Baseline command and result: `{{BASELINE_COMMAND}}` → {{ACTUAL_RESULT}}
 - Git/worktree checkpoint: {{GIT_CHECKPOINT}}
 
@@ -25,58 +27,38 @@ This section is the authoritative implementation boundary. `STATUS.md` must refe
 
 | Access | Path | Purpose |
 |---|---|---|
-| Add | `{{PATH}}` | {{PURPOSE}} |
-| Modify | `{{PATH}}` | {{PURPOSE}} |
-| Read only | `{{PATH}}` | {{PURPOSE}} |
-| Forbidden | `{{PATH_OR_SCOPE}}` | {{REASON}} |
+| {{ADD_OR_MODIFY}} | `{{PATH}}` | {{PURPOSE}} |
 
-Stop and report before changing a file outside this boundary.
+Add read-only or forbidden rows only when useful. Stop before changing a file
+outside this boundary.
 
 ## Contracts and invariants
 
-- Interface/data contract: {{EXACT_CONTRACT}}
-- Fact source and state transition: {{BEFORE_OPERATION_AFTER}}
-- Transaction/CAS/version rule: {{CONCURRENCY_RULE}}
-- Compatibility rule: {{COMPATIBILITY_RULE}}
+- Governing contract or invariant: {{RELEVANT_CONTRACT_OR_INVARIANT}}
+- Relevant interface, fact source, or state transition: {{RELEVANT_FLOW_OR_NONE}}
+- Conditional controls such as concurrency, compatibility, migration, or security: {{APPLICABLE_CONTROLS_OR_NONE}}
 - Executable guard: {{TEST_CONSTRAINT_OR_VALIDATOR}}
 
 ## Side-effect policy
 
-- Explicitly allowed: {{ALLOWED_EFFECTS}}
-- Must be blocked in automated tests: {{BLOCKED_EFFECTS}}
-- Required fakes/patch targets: {{FAKES_AND_IMPORT_PATHS}}
-- Shared state restoration: {{REGISTRY_SINGLETON_CACHE_FIXTURE}}
+- External or persistent effects: {{APPLICABLE_EFFECTS_OR_NONE}}
+- Test isolation, restoration, or recovery: {{APPLICABLE_CONTROL_OR_NONE}}
 
-## Implementation order
-
-1. {{SMALLEST_SAFE_CHANGE}}
-2. {{NEXT_CHANGE}}
-3. {{MINIMAL_WIRING}}
-4. {{TESTS_BEFORE_REPORTS}}
+Use `none` when no relevant effect exists; do not invent controls.
 
 ## Required pre-code rehearsal
 
-Before editing, report with detail proportional to the STEP risk. For a Fast
-phase STEP, combine items 2-5 into a concise boundary statement when the named
-mechanisms or effects are absent; do not invent filler risks.
+- Fast: confirm files, relevant invariant, validation, and stop condition.
+- Standard: also confirm affected consumers and material failure paths.
+- High-risk: also confirm applicable call chains, effects, isolation, recovery,
+  and failure-mode tests.
 
-1. exact files to change and why they are sufficient;
-2. entry-to-side-effect call chain;
-3. factories, fixtures, registries, singletons, caches, and environment writes involved;
-4. how each external effect is blocked in tests;
-5. up to three material mistakes and the test that catches each;
-6. the exact condition at which implementation stops.
+Do not describe absent mechanisms or risks.
 
 ## Acceptance
 
-### Normal cases
-
-- {{NORMAL_TEST}}
-
-### Failure and adversarial cases
-
-- {{FAILURE_TEST}}
-- {{CONCURRENCY_OR_SIDE_EFFECT_TEST}}
+- Core acceptance: {{CORE_ACCEPTANCE_TEST}}
+- Applicable consumer, failure, or adversarial checks: {{APPLICABLE_CHECKS_OR_NONE}}
 
 ### Validation commands
 
@@ -91,9 +73,8 @@ Record actual exit codes and results. Do not copy historical test counts.
 ## Stop and degrade
 
 - Stop when: {{STOP_CONDITION}}
-- Acceptable degradation: {{DEGRADED_PATH}}
 - Do not: {{FORBIDDEN_SHORTCUT}}
-- Rollback or recovery: {{ROLLBACK_OR_RECOVERY}}
+- Degradation, rollback, or recovery when applicable: {{APPLICABLE_RECOVERY_OR_NONE}}
 
 ## Deliverables
 

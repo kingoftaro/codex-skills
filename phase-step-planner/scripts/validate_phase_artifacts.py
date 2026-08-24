@@ -378,8 +378,10 @@ def validate_phase(phase_dir: Path) -> list[str]:
         errors.append(
             "current step checkpoint mismatch: "
             f"recorded {checkpoint!r}, actual {actual_checkpoint!r}; "
-            "classify attributable post-review text drift as STALE and "
-            "unexplained or materially conflicting drift as BLOCKED"
+            "classify attributable post-readiness drift as STALE, then use "
+            "route-level review for material deltas or focused confirmation "
+            "for clearly non-material deltas; unexplained or materially "
+            "conflicting drift is BLOCKED"
         )
     return errors
 

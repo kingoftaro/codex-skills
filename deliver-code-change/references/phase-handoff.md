@@ -36,9 +36,11 @@ return the conflict. Do not run hash validation in either case.
 7. Verify that the recorded `sha256:` checkpoint matches the STEP's current
    bytes and that repository state does not contradict the reviewed baseline.
    Any mismatch is non-executable. Report an expected, attributable STEP text
-   edit after review as `STALE` pending semantic re-review and a new checkpoint;
-   report unexplained drift or a material contract, boundary, authority, or
-   evidence conflict as `BLOCKED`. Do not refresh the hash alone.
+   edit after readiness review as `STALE` for planner classification. A material
+   delta requires the selected readiness review again; a clearly non-material
+   delta requires focused diff confirmation before a new checkpoint. Report
+   unexplained drift or a material contract, boundary, authority, or evidence
+   conflict as `BLOCKED`. The executor never refreshes the hash.
 8. Confirm that the STATUS `Repair loop` snapshot is structurally valid and is
    not `blocked`; the authoritative validator performs this check when it
    supports the bundled contract.
@@ -48,15 +50,24 @@ Do not silently repair phase artifacts while acting as the implementation execut
 
 ## Execute one step
 
-- Treat the STEP's One outcome, Non-goals, File boundary, Contracts and invariants, Side-effect policy, Acceptance, and Stop and degrade sections as binding after higher-priority instructions.
-- Perform the STEP's pre-code rehearsal before editing.
-- Select Fast, Standard, or High-risk within that boundary. Risk may increase verification depth but does not authorize broader scope.
+- Treat the STEP's One outcome, Non-goals, File boundary, relevant Contracts
+  and invariants, Acceptance, and Stop and degrade sections as binding after
+  higher-priority instructions. Conditional controls apply only when the STEP
+  identifies them; `none` never authorizes an otherwise forbidden effect.
+- Perform the STEP's pre-code boundary check at its selected depth. Keep Fast
+  concise; add call chains, failure modes, isolation, and recovery only when the
+  Standard or High-risk route and repository evidence require them.
+- Select Fast, Standard, or High-risk within that boundary. Evidence may raise
+  verification depth but does not authorize broader scope.
 - Modify only allowed files. Read-only and forbidden scopes remain unchanged unless the user or phase planner explicitly revises the STEP.
 - Block every external effect that the STEP forbids in automated tests.
 - Stop when a missing interface, migration, dependency, or side effect requires work assigned to a later step.
 - Classify a follow-on failure as latent, repair-introduced, or an
   environment/evidence contradiction. Do not turn it into an unapproved patch
   or a new STEP.
+- Do not treat every implementation defect as a STEP defect. Report a
+  specification gap only when the governing outcome, boundary, contract,
+  acceptance, or stop condition was missing or materially wrong.
 - Count a repair-loop event only when it is `CONFIRMED` or `STRONG`, material to
   current acceptance or the governing invariant, repair-introduced under the
   same STEP and invariant, and a distinct root cause. P3, `TENTATIVE`,
@@ -74,7 +85,8 @@ Report:
 
 1. outcome and changed files;
 2. exact commands, exit results, and relevant observations;
-3. normal, failure, adversarial, rollback, and degraded evidence required by the STEP;
+3. the exact acceptance evidence required by the STEP, including only the
+   applicable consumer, failure, adversarial, rollback, or degraded checks;
 4. confirmation that file and side-effect boundaries were respected;
 5. deviations, contradictions, blocked checks, and remaining risks.
 

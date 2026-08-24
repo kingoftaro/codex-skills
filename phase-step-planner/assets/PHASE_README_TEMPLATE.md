@@ -31,12 +31,15 @@ This file describes order and dependencies. It does not claim that a step is com
 ## Progression rule
 
 At most one step may be `detailed`, and it must match the current executable
-step in `STATUS.md`. Only a handoff whose review result and authoritative
-validator are both `PASS` may be implemented. Verify it and update `STATUS.md`
-before detailing or starting its successor. If observed repository state and
-intended contracts disagree, keep the handoff `STALE` or `BLOCKED` until the
-contradiction is resolved; do not let either source silently redefine the
-other.
+step in `STATUS.md`. Keep draft handoffs non-executable, normally `STALE`; draft
+revisions do not require validator or hash cycles. When a STEP is ready, run
+the review required by its Fast, Standard, or High-risk route, record its
+checkpoint, and validate it. Only a handoff whose review result and
+authoritative validator are both `PASS` may be implemented. Verify it and
+update `STATUS.md` before detailing or starting its successor. If observed
+repository state and intended contracts disagree, keep the handoff `STALE` or
+`BLOCKED` until the contradiction is resolved; do not let either source
+silently redefine the other.
 
 ## Final phase gates
 

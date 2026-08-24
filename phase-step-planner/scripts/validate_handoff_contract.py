@@ -18,6 +18,7 @@ Freeze one interface.
 
 ## Entry conditions and verified baseline
 - Handoff schema: 1
+- Review route: Fast
 - Baseline is green
 
 ## File boundary
@@ -92,6 +93,9 @@ def main() -> int:
     )
     planner_failures = skill_root / "references" / "FAILURE_PATTERNS.md"
     planner_repair_loop = skill_root / "references" / "repair-loop.md"
+    planner_step_template = skill_root / "assets" / "STEP_TEMPLATE.md"
+    planner_status_template = skill_root / "assets" / "STATUS_TEMPLATE.md"
+    planner_readme_template = skill_root / "assets" / "PHASE_README_TEMPLATE.md"
     executor_handoff = (
         repository_root / "deliver-code-change" / "references" / "phase-handoff.md"
     )
@@ -103,12 +107,15 @@ def main() -> int:
         executor_routing,
         planner_failures,
         planner_repair_loop,
+        planner_step_template,
+        planner_status_template,
+        planner_readme_template,
         executor_handoff,
     )
     if not all(path.is_file() for path in required_files):
         failures.append(
-            "adjacent skills, agent metadata, routing, repair-loop, and handoff "
-            "references are required"
+            "adjacent skills, agent metadata, templates, routing, repair-loop, "
+            "and handoff references are required"
         )
     else:
         planner_text = skill_root.joinpath("SKILL.md").read_text(encoding="utf-8")
@@ -118,6 +125,9 @@ def main() -> int:
         routing_text = executor_routing.read_text(encoding="utf-8")
         failure_text = planner_failures.read_text(encoding="utf-8")
         repair_loop_text = planner_repair_loop.read_text(encoding="utf-8")
+        step_template_text = planner_step_template.read_text(encoding="utf-8")
+        status_template_text = planner_status_template.read_text(encoding="utf-8")
+        readme_template_text = planner_readme_template.read_text(encoding="utf-8")
         handoff_text = executor_handoff.read_text(encoding="utf-8")
         for phrase, text, label in (
             ("Do not use for ordinary review", skill_text, "executor frontmatter"),
@@ -148,6 +158,31 @@ def main() -> int:
                 "Phase-like files alone do not establish applicability",
                 planner_text,
                 "planner handoff applicability",
+            ),
+            (
+                "Do not review every draft",
+                planner_text,
+                "planner readiness review gate",
+            ),
+            (
+                "one initial review and one focused delta review",
+                planner_text,
+                "planner review budget",
+            ),
+            (
+                "Review route: {{FAST_STANDARD_OR_HIGH_RISK}}",
+                step_template_text,
+                "step review route",
+            ),
+            (
+                "ordinary draft revisions do not require validator or hash cycles",
+                status_template_text,
+                "status draft lifecycle",
+            ),
+            (
+                "draft revisions do not require validator or hash cycles",
+                readme_template_text,
+                "phase index draft lifecycle",
             ),
             ("Only after this gate", skill_text, "executor applicability gate"),
             (
@@ -182,7 +217,9 @@ def main() -> int:
             "sha256:",
             "STALE",
             "BLOCKED",
-            "Do not refresh the hash alone",
+            "material delta requires the selected readiness review again",
+            "focused diff confirmation",
+            "executor never refreshes the hash",
         ):
             if not contains_phrase(handoff_text, phrase):
                 failures.append(f"executor handoff contract is missing {phrase!r}")

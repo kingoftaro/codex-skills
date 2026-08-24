@@ -20,12 +20,13 @@
 - Current step specification checkpoint: `sha256:{{CURRENT_STEP_SHA256}}`
 - Audited against repository checkpoint: `{{AUDITED_REPOSITORY_CHECKPOINT}}`
 
-For an active handoff, use `PASS` only after semantic consistency review and
-validation. `STALE` and `BLOCKED` are deliberately non-executable. For an
-`accepted` or `release-ready` phase with no active step, use `NOT_APPLICABLE`
-for the review result, `none` for the current executable step,
-`not-applicable` for its checkpoint, and leave no step marked `detailed` in
-`README.md`.
+For an active handoff, use `PASS` only after the readiness review required by
+the STEP's Fast, Standard, or High-risk route and structural validation. Draft
+STEP files remain non-executable, normally `STALE`; ordinary draft revisions do
+not require validator or hash cycles. For an `accepted` or `release-ready`
+phase with no active step, use `NOT_APPLICABLE` for the review result, `none`
+for the current executable step, `not-applicable` for its checkpoint, and leave
+no step marked `detailed` in `README.md`.
 
 The `Repair loop` JSON is the machine-readable snapshot for the current
 governing invariant. Use `observing` after the first qualifying regression and
@@ -82,8 +83,11 @@ Use `reset` after evidence-backed root-cause review. Terminal phases use
 ## Evidence integrity
 
 - Do not infer completion from file existence, a previous model summary, or a stale report.
-- Re-run the named baseline when code, dependencies, migrations, tests, or acceptance claims change.
-- Classify an expected STEP text edit after review as `STALE` until semantic
-  re-review and checkpoint refresh; classify unexplained drift or a material
-  contract, boundary, authority, or evidence conflict as `BLOCKED`.
+- Re-run only the named checks whose evidence may be invalidated by a relevant
+  code, dependency, migration, test, or acceptance change.
+- Classify an expected STEP edit after readiness review as `STALE`. Material
+  changes require the selected readiness review again; clearly non-material
+  changes require only focused diff confirmation and checkpoint refresh.
+  Classify unexplained drift or a material contract, boundary, authority, or
+  evidence conflict as `BLOCKED`.
 - Keep behavioral guarantees in executable code and tests; link them here.

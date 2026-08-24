@@ -23,28 +23,57 @@ process only while persistent coordination reduces execution risk.
 
 ## Planning boundary
 
-Define the phase objective, scope, dependency-aware outcomes, risks, validation,
-and acceptance gates without inventing requirements or architecture. When a
-material decision remains unresolved, stop with the decision, viable options
-and tradeoffs, affected contracts, and smallest safe temporary boundary.
+Define objective, scope, dependency-aware outcomes, risks, validation, and
+acceptance from evidence; do not invent requirements or architecture. For an
+unresolved material decision, report the options, tradeoffs, affected
+contracts, and smallest safe boundary, then stop.
 
 Each STEP has one outcome, bounded scope, acceptance evidence, and stop
 conditions. Keep one authoritative STATUS and exactly one detailed current
 STEP. Create phase artifacts only when the entry gate passes, using bundled
 templates only when no repository convention exists.
 
+Treat a STEP as an executable contract, not an exhaustive proof. Include
+conditional concerns only when evidence makes them apply.
+
 ## Execution cycle
 
 1. Inspect current code, Git, tests, migrations, configuration, contracts, and
    raw evidence.
-2. Reconcile observed repository state with intended behavior.
-3. Define phase scope and dependency-aware bounded outcomes.
-4. Prepare and validate exactly one current executable STEP.
+2. Reconcile observed state and define dependency-aware outcomes.
+3. Draft one current STEP and choose its review route.
+4. At readiness, perform that review, checkpoint, and validate the handoff.
 5. Hand it to `deliver-code-change`.
-6. Independently inspect the returned diff and verification evidence; accept or
-   reject it.
-7. Update phase state and prepare a successor only from the newly verified
-   state.
+6. Independently inspect its diff and evidence; accept or reject it.
+7. Update phase state and prepare a successor only from accepted evidence.
+
+## STEP readiness review
+
+Do not review every draft. Keep drafts non-executable, normally `STALE`, without
+validator or hash cycles. At handoff, choose review depth by material risk:
+
+- **Fast:** localized, obvious, reversible; planner self-check plus structural
+  validation, with no independent pre-implementation review.
+- **Standard:** cross-file behavior, interfaces, or moderate uncertainty; one
+  independent executable-contract review.
+- **High-risk:** security, authorization, migration, concurrency, destructive
+  behavior, or external effects; also review applicable failure, recovery, and
+  isolation controls with stronger evidence.
+
+Risk overrides diff size. Every route checks the outcome, non-goals, file and
+effect boundary, relevant contract or invariant, acceptance signal, and stop
+condition. Do not invent controls to fill the template. Independent
+post-implementation acceptance remains required.
+
+Only a material execution ambiguity or contradiction, a `CONFIRMED` or
+`STRONG` P0/P1, or an explicit project gate blocks readiness. P2/P3, wording,
+formatting, and speculative hardening do not trigger another round.
+
+Allow one initial review and one focused delta review. Repeat the route only for
+changes to outcome, non-goals, boundaries, contracts, invariants, acceptance,
+stop/recovery, or reviewed baseline; non-material edits need only diff
+confirmation and a new checkpoint. If conflict remains, split, run a bounded
+spike, or obtain the missing decision. The planner owns checkpoints.
 
 ## Repair-loop Circuit Breaker
 
@@ -65,53 +94,48 @@ acceptance or rollback boundaries are proven.
 
 ## Evidence and phase state
 
-Code, Git, tests, migrations, configuration, raw output, and validation establish
-observed state; accepted requirements and contracts establish intended
-behavior. Chat, assumptions, and generated plans are not evidence. Record
-conflicts explicitly: use `STALE` for evidence-backed artifact synchronization,
-`BLOCKED` for a material implementation, contract, authority, or evidence
-conflict, and `PASS` only when executable. Acceptance requires satisfied
-criteria, current validation evidence, and documented remaining risks.
+Code, Git, tests, migrations, configuration, and raw output establish observed
+state; accepted requirements and contracts establish intent. Chat, assumptions,
+and plans are not evidence. Use `STALE` for evidence-backed synchronization,
+`BLOCKED` for material implementation, contract, authority, or evidence
+conflict, and `PASS` only when executable. Acceptance requires current evidence
+and documented remaining risks.
 
 ## Executable handoff
 
-Before a validator, checkpoint, or hash comparison, confirm that the request
-implements, resumes, accepts, or advances one identified non-terminal phase;
-its STATUS and current STEP govern the requested outcome; and the requested
-files and effects fit that STEP. Phase-like files alone do not establish
-applicability. Without phase authority, use the ordinary workflow; with phase
-authority but a boundary conflict, reconcile instead of falling back.
+Before validation or hash comparison, confirm one identified non-terminal phase
+governs the request through its STATUS and current STEP, including requested
+files and effects. Phase-like files alone do not establish applicability. With
+no phase authority, use the ordinary workflow; with authority but a boundary
+conflict, reconcile it.
 
 An applicable handoff is executable only when:
 
-1. `STATUS.md` names exactly one current `STEP_*.md` and the phase is not
-   terminal.
-2. STATUS and STEP name the same supported handoff schema.
-3. Semantic review and the authoritative validator are `PASS`, with no material
-   repository, contract, or evidence contradiction.
-4. The STEP checkpoint matches its bytes and its path stays inside the phase
-   directory.
-5. The STEP defines one outcome, non-goals, file and side-effect boundaries,
-   acceptance evidence, and stop conditions.
+1. STATUS names exactly one current `STEP_*.md` in a non-terminal phase.
+2. STATUS and STEP use the same supported schema.
+3. Route-required readiness review and the authoritative validator are `PASS`,
+   with no material repository, contract, or evidence conflict.
+4. The checkpoint matches the STEP bytes and its path stays in the phase.
+5. Outcome, non-goals, boundaries, relevant invariants, acceptance, and stop
+   conditions are executable.
 
-The validator named by repository instructions is authoritative; never bypass
-its failure with the bundled validator, a manual digest, inferred
-compatibility, or silent repair. If no repository validator exists, resolve
-`<python>` and `<skill-root>` to explicit paths and run:
+Use the repository-named validator when present; do not bypass it with another
+validator, manual digest, inferred compatibility, or silent repair. Otherwise
+resolve the explicit paths and run:
 
 ```text
 <python> <skill-root>/scripts/validate_phase_artifacts.py <phase-directory>
 ```
 
-Bundled validation uses schema `1`; a repository may declare a stricter schema.
-Do not infer cross-version compatibility. Bundled `PASS` proves only structural
-and internal consistency, not live state, semantics, independence, or authority.
+Bundled validation uses schema `1`; do not infer cross-version compatibility.
+Its `PASS` proves structure and internal consistency only.
 
-A checkpoint mismatch is always non-executable, but it is not automatically
-`BLOCKED`. Treat an expected, attributable STEP text edit after review as
-`STALE` until semantic review is repeated and a new checkpoint is recorded.
-Treat unexplained drift or a material contract, boundary, authority, or evidence
-conflict as `BLOCKED`. Never refresh the hash alone or silently repair STATUS.
+A checkpoint mismatch is non-executable, not automatically `BLOCKED`. Expected,
+attributable post-readiness edits are `STALE`: repeat the selected review for a
+material delta, or confirm a clearly non-material diff, before recording a new
+checkpoint. Unexplained drift or a material contract, boundary, authority, or
+evidence conflict is `BLOCKED`. Never refresh the hash without reviewing the
+delta or silently repair STATUS.
 
 Give the executor only applicable repository instructions, STATUS, the current
 STEP, and named read-only references. Handoff `PASS` grants no extra authority.

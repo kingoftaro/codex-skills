@@ -44,6 +44,7 @@ Freeze the interface.
 - Adapter work
 ## Entry conditions and verified baseline
 - Handoff schema: 1
+- Review route: Fast
 - Baseline is green
 ## File boundary
 | Access | Path | Purpose |
@@ -81,6 +82,9 @@ class ValidatePhaseArtifactsTests(unittest.TestCase):
         for heading in REQUIRED_STEP_HEADINGS:
             self.assertIn(heading, step_template.splitlines())
         self.assertIn("- Handoff schema: 1", step_template)
+        self.assertIn("- Review route: {{FAST_STANDARD_OR_HIGH_RISK}}", step_template)
+        self.assertNotIn("- Transaction/CAS/version rule:", step_template)
+        self.assertNotIn("## Implementation order", step_template)
         self.assertIn("| Step document |", readme_template)
 
     def make_phase(
