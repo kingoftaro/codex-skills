@@ -1,6 +1,6 @@
 ---
 name: deliver-code-change
-description: Implement and verify one bounded code change whose behavior, consumers, or verification justify a dedicated workflow. Do not use for trivial documentation, formatting, comment-only, or similarly obvious low-risk edits; do not use to plan a multi-stage phase.
+description: Implement and verify one bounded code outcome when behavior, affected consumers, uncertainty, or required evidence justify a dedicated workflow. Do not use for ordinary review, exploration, trivial edits, or multi-stage phase planning.
 ---
 
 # Deliver Code Change
@@ -11,16 +11,12 @@ exploration.
 
 ## Entry and exit gates
 
-Handle an edit directly under repository instructions, without this skill or
-process artifacts, only when every condition holds:
-
-- no current phase handoff governs it;
-- it is local, obvious, reversible, and its consumers are known;
-- it changes no shared contract, dependency, configuration, persisted data, or
-  schema;
-- it involves no security, authorization, privacy, money, concurrency,
-  destructive behavior, or external side effect;
-- one focused check gives proportionate confidence.
+Use this skill when one bounded implementation outcome needs coordinated
+editing and verification because its behavior, consumers, uncertainty, or
+acceptance evidence are material. Keep ordinary exploration, review, trivial
+documentation or formatting, and localized obvious reversible edits in the
+direct workflow. A risk keyword or file category alone does not select this
+skill.
 
 If this skill was already selected for such an edit, use the Fast route, load
 no supporting reference without a concrete uncertainty, and create no planning
@@ -44,7 +40,8 @@ Before editing:
 4. Plan only to that route's depth.
 5. Implement the smallest coherent change.
 6. Verify with repository-native evidence.
-7. Perform consequential actions only with explicit authorization.
+7. Follow applicable authority rules; selecting a route grants no additional
+   permission.
 
 Source diffs, raw command output, test results, and inspected runtime behavior
 are evidence. Generated reports and assumptions are not.
@@ -55,7 +52,11 @@ processes, or silently widen scope.
 
 ## Phase-managed work
 
-When an applicable phase handoff exists:
+Do not infer phase control from nearby files. Before loading phase resources,
+confirm that this request implements, resumes, or advances one identified
+non-terminal phase, whose STATUS and current STEP govern the requested outcome
+and boundary. If authority is absent, use a non-phase route; if authority exists
+but the boundary fails, stop and return the conflict. Only after this gate:
 
 - read [references/phase-handoff.md](references/phase-handoff.md);
 - run the validator named by repository instructions;
@@ -93,15 +94,9 @@ For Standard and High-risk work, read
 [references/implementation.md](references/implementation.md). For High-risk
 work, also read [references/risk-controls.md](references/risk-controls.md).
 
-Inspect definitions and consumers, follow repository conventions, reuse
-existing abstractions, and prefer minimal compatible diffs. Avoid unrelated
-cleanup, speculative refactoring, new dependencies, frameworks, or
-abstractions. After editing, inspect the changed files and exclude unrelated
-changes.
-
-Implement established decisions; do not introduce new system boundaries,
-replace architecture, redesign data models, generalize a framework, or migrate
-technologies without the required decision and authority.
+Inspect definitions and consumers, follow repository conventions, and implement
+established decisions with a minimal compatible diff. Stop when the outcome
+would require a new requirement, architecture decision, or wider boundary.
 
 ## Verification
 
@@ -141,11 +136,10 @@ For phase-managed work, also report boundary compliance, deviations, and
 evidence for planner review. Do not mark phase acceptance, update STATUS, or
 define next steps.
 
-## Authority and resources
+## Resources and final rule
 
-Never commit, push, deploy, publish, open a pull request, modify a remote,
-install dependencies, or perform a destructive operation without explicit
-authorization.
+Applicable Global and repository safety, Git, and authority rules remain in
+force. This skill and its route selection grant no additional authority.
 
 Read supporting material only when its condition applies:
 
@@ -165,7 +159,5 @@ Use `scripts/detect_project.py` only when repository shape or toolchains remain
 unclear. Use `scripts/check_python_contracts.py` only for an explicit supported
 Python contract. Scripts supply evidence, never permission or wider scope.
 
-Higher-priority repository instructions win. Never overwrite unrelated work,
-weaken validation or security, report unexecuted checks as complete, add an
-unjustified dependency, or expand scope silently. Prefer the smallest correct
-change.
+Higher-priority repository instructions win. Prefer the smallest correct
+change and report rather than silently crossing the agreed boundary.

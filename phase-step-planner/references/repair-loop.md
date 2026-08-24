@@ -1,9 +1,17 @@
 # Repair-loop management
 
-Read this reference on the first related repair-introduced regression, whenever
-STATUS records a non-`inactive` `Repair loop`, or before recovering a blocked
-repair handoff. The matching signal and typical cause are documented in
+Read this reference on the first qualifying repair-introduced regression,
+whenever STATUS records a non-`inactive` `Repair loop`, or before recovering a
+blocked repair handoff. The matching signal and typical cause are documented in
 [Symptom patch creates an adjacent regression](FAILURE_PATTERNS.md#symptom-patch-creates-an-adjacent-regression).
+
+## Qualification gate
+
+Increment `consecutive_regressions` only for a `CONFIRMED` or `STRONG`,
+material, `repair-introduced` finding under the same current STEP and invariant
+that represents a newly evidenced root-cause event, not a duplicate. The first
+qualifying finding establishes the sequence. `TENTATIVE`, P3, pre-existing,
+style-only, and ordinary documentation findings do not change the snapshot.
 
 ## Classify and record the finding
 
@@ -20,7 +28,7 @@ machine-readable `Repair loop` snapshot tracks the consecutive
 repair-introduced sequence; the risk entry carries the detailed classification
 and evidence.
 
-## First related regression
+## First qualifying regression
 
 Keep the repair in the current STEP only while its governing invariant, file
 and side-effect boundaries, and acceptance gate remain valid. Set `Repair loop`
@@ -34,10 +42,10 @@ cleanup, and compatibility when those paths may share the invariant.
 If the current STEP boundary or acceptance gate no longer covers the repair,
 stop and reconcile the handoff instead of creating a successor repair STEP.
 
-## Second consecutive regression
+## Second consecutive qualifying regression
 
-When the same current STEP produces a second consecutive material
-repair-introduced regression under the same governing invariant:
+When the same current STEP produces a second consecutive finding that passes
+the qualification gate under the same governing invariant:
 
 1. Set `Review result` and the handoff to `BLOCKED`.
 2. Set `Repair loop` to `blocked` with the invariant ID, a count of at least
@@ -94,5 +102,8 @@ State requirements:
 
 The authoritative phase validator must reject malformed JSON, unknown fields
 or states, and illegal field combinations. Risk-table prose supplies context
-but does not override the machine-readable snapshot. A repository-local
-validator or schema may impose stricter rules.
+but does not override the machine-readable snapshot. Structural validation
+cannot prove confidence, causality, materiality, STEP/invariant identity, or
+root-cause uniqueness; the planner must establish those from evidence before
+incrementing the count. A repository-local validator or schema may impose
+stricter rules.

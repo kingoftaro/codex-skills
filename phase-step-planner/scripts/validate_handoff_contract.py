@@ -45,6 +45,12 @@ Report exact touchpoints and stop conditions.
 """
 
 
+def contains_phrase(text: str, phrase: str) -> bool:
+    """Match a declaration without making Markdown line wrapping significant."""
+
+    return " ".join(phrase.split()) in " ".join(text.split())
+
+
 def make_phase(root: Path) -> tuple[Path, Path]:
     step = root / "STEP_001_freeze_contract.md"
     step.write_text(STEP_BODY, encoding="utf-8")
@@ -114,13 +120,36 @@ def main() -> int:
         repair_loop_text = planner_repair_loop.read_text(encoding="utf-8")
         handoff_text = executor_handoff.read_text(encoding="utf-8")
         for phrase, text, label in (
-            ("Do not use for trivial", skill_text, "executor frontmatter"),
-            ("do not use to plan a multi-stage phase", skill_text, "executor frontmatter"),
-            ("Do not use for one bounded change", planner_text, "planner frontmatter"),
-            ("should not be invoked for a trivial edit", routing_text, "direct-edit routing"),
-            ("non-trivial bounded code change", executor_agent_text, "executor agent metadata"),
-            ("multi-stage phase", planner_agent_text, "planner agent metadata"),
+            ("Do not use for ordinary review", skill_text, "executor frontmatter"),
+            ("multi-stage phase planning", skill_text, "executor frontmatter"),
+            (
+                "Do not use merely because a task is large",
+                planner_text,
+                "planner frontmatter",
+            ),
+            ("unrelated phase files exist", planner_text, "planner frontmatter"),
+            (
+                "Keep ordinary exploration, review, and trivial edits direct",
+                routing_text,
+                "direct-edit routing",
+            ),
+            (
+                "bounded non-trivial code outcome",
+                executor_agent_text,
+                "executor agent metadata",
+            ),
+            (
+                "persistent STATUS/STEP phase handoffs",
+                planner_agent_text,
+                "planner agent metadata",
+            ),
             ("Repair-loop Circuit Breaker", planner_text, "planner repair-loop gate"),
+            (
+                "Phase-like files alone do not establish applicability",
+                planner_text,
+                "planner handoff applicability",
+            ),
+            ("Only after this gate", skill_text, "executor applicability gate"),
             (
                 "Symptom patch creates an adjacent regression",
                 failure_text,
@@ -128,7 +157,7 @@ def main() -> int:
             ),
             ("repair-loop circuit breaker", handoff_text, "executor repair-loop return"),
         ):
-            if phrase not in text:
+            if not contains_phrase(text, phrase):
                 failures.append(f"{label} is missing routing contract phrase {phrase!r}")
         if "[references/phase-handoff.md](references/phase-handoff.md)" not in skill_text:
             failures.append("executor SKILL.md does not route phase-managed work to phase-handoff.md")
@@ -138,17 +167,24 @@ def main() -> int:
             "consecutive_regressions",
             "independent acceptance or rollback boundaries",
             "root-cause evidence",
+            "CONFIRMED",
+            "newly evidenced root-cause event",
+            "do not change the snapshot",
         ):
-            if term not in repair_loop_text:
+            if not contains_phrase(repair_loop_text, term):
                 failures.append(f"planner repair-loop contract is missing {term!r}")
         for phrase in (
+            "Establish applicability first",
             "authoritative validator",
             "Review result",
             "Handoff schema",
             "current executable STEP",
             "sha256:",
+            "STALE",
+            "BLOCKED",
+            "Do not refresh the hash alone",
         ):
-            if phrase not in handoff_text:
+            if not contains_phrase(handoff_text, phrase):
                 failures.append(f"executor handoff contract is missing {phrase!r}")
 
     with tempfile.TemporaryDirectory() as temporary:

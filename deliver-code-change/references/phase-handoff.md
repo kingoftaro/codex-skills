@@ -1,6 +1,21 @@
 # Phase Handoff Execution
 
-Use this mode only when a phase planner has produced an applicable `STATUS.md` and current `STEP_*.md` for the requested change.
+Use this mode only when a phase planner has produced an applicable `STATUS.md`
+and current `STEP_*.md` for the requested change.
+
+## Establish applicability first
+
+Do not run a handoff validator or compare the STEP hash until confirming:
+
+- the request implements, resumes, or advances one authoritative phase;
+- STATUS identifies a non-terminal phase and exactly one current STEP; and
+- that STEP governs the requested outcome, files, and side effects.
+
+The presence of `STATUS.md`, `STEP_*.md`, or other phase-like files is not
+sufficient. Without phase authority, use the ordinary applicable workflow
+unless unresolved authority would materially change the outcome. When phase
+authority exists but the STEP boundary does not cover the request, stop and
+return the conflict. Do not run hash validation in either case.
 
 ## Validate the handoff
 
@@ -18,7 +33,12 @@ Use this mode only when a phase planner has produced an applicable `STATUS.md` a
 4. Confirm that STATUS identifies exactly one current executable STEP, the phase is not terminal, and its `Review result` is `PASS`. `STALE` and `BLOCKED` are not executable.
 5. Confirm that STATUS and STEP declare the same supported `Handoff schema`. The bundled templates and validator use schema `1`; a repository may declare a stricter version through its own validator.
 6. Verify that the STEP path is relative, remains inside the phase directory, and matches the detailed step in the phase index when present.
-7. Verify that the recorded `sha256:` checkpoint matches the STEP's current bytes and that repository state does not contradict the reviewed baseline.
+7. Verify that the recorded `sha256:` checkpoint matches the STEP's current
+   bytes and that repository state does not contradict the reviewed baseline.
+   Any mismatch is non-executable. Report an expected, attributable STEP text
+   edit after review as `STALE` pending semantic re-review and a new checkpoint;
+   report unexplained drift or a material contract, boundary, authority, or
+   evidence conflict as `BLOCKED`. Do not refresh the hash alone.
 8. Confirm that the STATUS `Repair loop` snapshot is structurally valid and is
    not `blocked`; the authoritative validator performs this check when it
    supports the bundled contract.
@@ -37,11 +57,16 @@ Do not silently repair phase artifacts while acting as the implementation execut
 - Classify a follow-on failure as latent, repair-introduced, or an
   environment/evidence contradiction. Do not turn it into an unapproved patch
   or a new STEP.
+- Count a repair-loop event only when it is `CONFIRMED` or `STRONG`, material to
+  current acceptance or the governing invariant, repair-introduced under the
+  same STEP and invariant, and a distinct root cause. P3, `TENTATIVE`,
+  pre-existing, style-only, ordinary documentation, and duplicate findings do
+  not count.
 - If STATUS records an active repair-loop circuit breaker, or a second
-  consecutive review round produces another material repair-introduced
-  regression for the same STEP, stop without another patch. Return the failing
-  reproduction, governing invariant, suspected fault locus, affected adjacent
-  paths, and current evidence to the planner.
+  consecutive qualifying repair-loop event occurs for the same STEP and
+  invariant, stop without another patch. Return the failing reproduction,
+  governing invariant, suspected fault locus, affected adjacent paths, and
+  current evidence to the planner.
 
 ## Return evidence
 

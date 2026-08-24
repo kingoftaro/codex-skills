@@ -1,4 +1,4 @@
 interface:
   display_name: "Phase Step Planner"
-  short_description: "Split large phases into verified implementation steps"
-  default_prompt: "Use $phase-step-planner to audit this multi-stage phase and prepare one bounded executable step."
+  short_description: "Manage persistent STATUS/STEP phase handoffs"
+  default_prompt: "Use $phase-step-planner to create, resume, reconcile, or advance this repository-backed phase with persistent STATUS/STEP handoffs."

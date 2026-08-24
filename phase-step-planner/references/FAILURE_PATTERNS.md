@@ -55,8 +55,9 @@ state separately from intended contracts; keep the handoff `STALE` or
 
 ## Symptom patch creates an adjacent regression
 
-**Signal:** The reported defect disappears, but a neighboring contract path
-breaks during the next review, and each repair appears to create another repair.
+**Signal:** A `CONFIRMED` or `STRONG` material regression is introduced by the
+current repair under the same STEP and governing invariant. Repeated symptoms,
+tentative findings, and pre-existing defects are not circuit-breaker events.
 
 **Typical cause:** The patch implements a visible symptom instead of the
 governing invariant, while verification reruns only the original reproduction.
@@ -65,4 +66,5 @@ governing invariant, while verification reruns only the original reproduction.
 [repair-loop.md](repair-loop.md) before another implementation patch or STEP
 change. Record the original reproduction, governing invariant, suspected fault
 locus, affected neighboring paths, repair round, and closure evidence in the
-existing STATUS risk entry; do not create a second issue tracker.
+existing STATUS risk entry; increment the loop only through that reference's
+qualification gate, and do not create a second issue tracker.

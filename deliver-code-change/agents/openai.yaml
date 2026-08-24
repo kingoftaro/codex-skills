@@ -1,4 +1,4 @@
 interface:
   display_name: "Deliver Code Change"
-  short_description: "Deliver one non-trivial bounded code change"
-  default_prompt: "Use $deliver-code-change for this non-trivial bounded code change; implement and verify it without expanding scope."
+  short_description: "Implement one bounded non-trivial code outcome"
+  default_prompt: "Use $deliver-code-change to implement and verify this bounded code outcome without expanding scope."

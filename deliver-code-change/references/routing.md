@@ -6,17 +6,14 @@ Route only one bounded change. When a request needs multiple independently accep
 
 ## Direct-edit gate
 
-This Skill should not be invoked for a trivial edit when all of these are true:
+Keep ordinary exploration, review, and trivial edits direct. Also keep a
+localized, understood, reversible correction direct when one focused check is
+proportionate and no applicable phase handoff governs it. A risk keyword or
+file category is context for judgment, not sufficient evidence to enter this
+Skill.
 
-- no applicable phase handoff exists;
-- the change is local, obvious, reversible, and its consumers are known;
-- no shared contract, dependency, configuration, persisted data, or schema changes;
-- no security, authorization, privacy, money, concurrency, destructive behavior, or external side effect;
-- one focused repository-native check provides proportionate confidence.
-
-Examples include documentation, comments, formatting, labels, and similarly
-obvious low-risk corrections. If the Skill is already active, handle such work
-as Fast without process artifacts or additional references.
+If the Skill is already active for such work, use Fast without process
+artifacts or additional references.
 
 ## Decision order
 

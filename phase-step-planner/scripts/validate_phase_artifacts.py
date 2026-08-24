@@ -377,7 +377,9 @@ def validate_phase(phase_dir: Path) -> list[str]:
     if checkpoint != actual_checkpoint:
         errors.append(
             "current step checkpoint mismatch: "
-            f"recorded {checkpoint!r}, actual {actual_checkpoint!r}"
+            f"recorded {checkpoint!r}, actual {actual_checkpoint!r}; "
+            "classify attributable post-review text drift as STALE and "
+            "unexplained or materially conflicting drift as BLOCKED"
         )
     return errors
 

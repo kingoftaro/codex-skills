@@ -28,11 +28,11 @@ for the review result, `none` for the current executable step,
 `README.md`.
 
 The `Repair loop` JSON is the machine-readable snapshot for the current
-governing invariant. Use `observing` after the first material
-repair-introduced regression, `blocked` after the second consecutive one, and
-`reset` only after an evidence-backed root-cause review establishes a corrected
-boundary. Terminal phases use `inactive`; keep detailed history in the risk
-table instead of expanding this snapshot.
+governing invariant. Use `observing` after the first qualifying regression and
+`blocked` after the second; only `CONFIRMED` or `STRONG`, material,
+repair-introduced, non-duplicate events under the same STEP and invariant count.
+Use `reset` after evidence-backed root-cause review. Terminal phases use
+`inactive`; keep detailed history in the risk table.
 
 ## Position
 
@@ -83,4 +83,7 @@ table instead of expanding this snapshot.
 
 - Do not infer completion from file existence, a previous model summary, or a stale report.
 - Re-run the named baseline when code, dependencies, migrations, tests, or acceptance claims change.
+- Classify an expected STEP text edit after review as `STALE` until semantic
+  re-review and checkpoint refresh; classify unexplained drift or a material
+  contract, boundary, authority, or evidence conflict as `BLOCKED`.
 - Keep behavioral guarantees in executable code and tests; link them here.

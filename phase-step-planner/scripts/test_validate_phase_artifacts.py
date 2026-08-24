@@ -204,7 +204,9 @@ class ValidatePhaseArtifactsTests(unittest.TestCase):
 
     def test_checkpoint_mismatch_fails(self) -> None:
         errors = validate_phase(self.make_phase(recorded_checkpoint="sha256:" + "0" * 64))
-        self.assertTrue(any("checkpoint mismatch" in error for error in errors))
+        mismatch = next(error for error in errors if "checkpoint mismatch" in error)
+        self.assertIn("STALE", mismatch)
+        self.assertIn("BLOCKED", mismatch)
 
     def test_reviewed_and_audited_checkpoints_must_match(self) -> None:
         errors = validate_phase(self.make_phase(audited_checkpoint="different"))
