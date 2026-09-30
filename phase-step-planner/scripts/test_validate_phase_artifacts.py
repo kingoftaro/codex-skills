@@ -315,6 +315,33 @@ class ValidatePhaseArtifactsTests(unittest.TestCase):
         errors = validate_phase(self.make_phase(repair_loop_value="{not-json"))
         self.assertTrue(any("invalid Repair loop JSON" in error for error in errors))
 
+    def test_duplicate_repair_loop_keys_are_structural_errors(self) -> None:
+        inactive = json.loads(INACTIVE_REPAIR_LOOP)
+        conflicting = {
+            "state": "blocked",
+            "invariant_id": "INV-1",
+            "consecutive_regressions": 2,
+            "last_classification": "repair-introduced",
+            "evidence": "STATUS.md#repair-2",
+        }
+        for key, value in inactive.items():
+            for duplicate in (value, conflicting[key]):
+                with self.subTest(key=key, duplicate=duplicate):
+                    raw = "{" + json.dumps(key) + ":" + json.dumps(duplicate) + "," + INACTIVE_REPAIR_LOOP[1:]
+                    root = self.make_phase(repair_loop_value=raw)
+                    status = root / "STATUS.md"
+                    before = status.read_bytes()
+                    result = inspect_phase(root)
+                    self.assertEqual(result.outcome, "FAIL")
+                    self.assertTrue(any(
+                        "invalid Repair loop JSON" in error and f"duplicate key {key!r}" in error
+                        for error in result.errors
+                    ))
+                    code, output = self.run_cli(root)
+                    self.assertEqual(code, 1)
+                    self.assertIn("FAIL: handoff is not executable", output)
+                    self.assertEqual(status.read_bytes(), before)
+
     def test_unknown_handoff_schema_fails(self) -> None:
         errors = validate_phase(self.make_phase(handoff_schema="99"))
         self.assertTrue(any("unsupported or missing Handoff schema" in error for error in errors))

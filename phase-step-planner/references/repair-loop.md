@@ -100,8 +100,9 @@ State requirements:
   `last_classification` = `repair-introduced`, retain the invariant ID, and
   record root-cause evidence for the corrected boundary.
 
-The authoritative phase validator must reject malformed JSON, unknown fields
-or states, and illegal field combinations. Risk-table prose supplies context
+The authoritative phase validator must reject malformed JSON, duplicate keys
+(even with identical values), unknown fields or states, and illegal field
+combinations. Risk-table prose supplies context
 but does not override the machine-readable snapshot. Structural validation
 cannot prove confidence, causality, materiality, STEP/invariant identity, or
 root-cause uniqueness; the planner must establish those from evidence before

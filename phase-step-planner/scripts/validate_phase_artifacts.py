@@ -124,6 +124,15 @@ def unquote_code(value: str) -> str:
     return value
 
 
+def repair_loop_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    values: dict[str, object] = {}
+    for key, value in pairs:
+        if key in values:
+            raise ValueError(f"duplicate key {key!r}")
+        values[key] = value
+    return values
+
+
 def parse_repair_loop(
     raw_value: str | None,
     review_result: str | None,
@@ -133,9 +142,12 @@ def parse_repair_loop(
         return None
     value = unquote_code(raw_value)
     try:
-        repair = json.loads(value)
+        repair = json.loads(value, object_pairs_hook=repair_loop_object)
     except json.JSONDecodeError as exc:
         errors.append(f"invalid Repair loop JSON: {exc.msg}")
+        return None
+    except ValueError as exc:
+        errors.append(f"invalid Repair loop JSON: {exc}")
         return None
     if not isinstance(repair, dict):
         errors.append("Repair loop must be a JSON object")
