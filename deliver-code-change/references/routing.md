@@ -17,7 +17,7 @@ artifacts or additional references.
 
 ## Decision order
 
-1. Select High-risk when any High-risk trigger applies.
+1. Select High-risk when evidence establishes a material consequence below.
 2. Otherwise select Standard when uncertainty or coordination is material.
 3. Select Fast only when the change is localized, understood, reversible, and low-risk.
 
@@ -46,15 +46,20 @@ Use Standard when any of these apply and no High-risk trigger applies:
 
 ## High-risk
 
-Use High-risk for:
+Use High-risk when the change materially affects:
 
-- Authentication, authorization, secrets, cryptography, or trust boundaries.
-- Prices, balances, billing, financial calculations, or irreversible transactions.
-- Schema migrations, backfills, data deletion, destructive transformations, or rollback-sensitive changes.
-- State machines, idempotency, retries, concurrency, ordering, locking, or distributed consistency.
-- External APIs, webhooks, queues, payment providers, or effects outside the repository.
-- Service startup, process management, infrastructure, deployment, or production configuration.
-- Privacy, regulated data, safety-critical behavior, or compatibility contracts with unknown consumers.
+- Authentication, authorization, secret handling, cryptography, or trust boundaries.
+- Monetary correctness or irreversible transactions.
+- Persisted data through migrations, backfills, deletion, destructive transformations, or difficult rollback.
+- Shared-state correctness or duplicate, reordered, retried, or cancelled actions whose failure can corrupt data or repeat consequential effects.
+- External effects, including which real operations are issued, their authorization, or their recovery after failure.
+- Operational availability or failure scope through startup, shutdown, infrastructure, deployment, or production configuration.
+- Privacy, regulated data, safety-critical behavior, or compatibility with unknown consumers where failure has material impact.
+
+Inspect state machines, retries, concurrency, processes, and external clients
+for these consequences. Their presence alone is insufficient. A reversible
+local display state or a mocked read-only client can stay Fast or Standard;
+cancellation deciding whether a real device continues acting is High-risk.
 
 High-risk remains High-risk even for a one-line diff.
 
@@ -77,5 +82,7 @@ Route: Standard — changes a shared response type and three known consumers; no
 | Change one authorization condition | High-risk | Authorization overrides diff size |
 | Add payment retry handling | High-risk | Money, external side effects, and idempotency |
 | Refactor a private helper across two files | Standard | Cross-file regression surface without a High-risk trigger |
+| Update loading/retry display behavior across components | Standard | Coordinated UI behavior with known consumers |
+| Change cancellation of real device actions | High-risk | Cancellation governs consequential external effects |
 
 Missing tools or credentials affect verification status, not route selection.

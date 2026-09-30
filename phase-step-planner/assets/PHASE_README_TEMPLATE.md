@@ -30,6 +30,10 @@ This file describes order and dependencies. It does not claim that a step is com
 
 ## Progression rule
 
+Keep implementation, affected consumers, and related tests in one verifiable
+outcome. Prefer fewer complete steps; split for independent acceptance, risk,
+or rollback boundaries rather than file operations.
+
 At most one step may be `detailed`, and it must match the current executable
 step in `STATUS.md`. Keep draft handoffs non-executable, normally `STALE`; draft
 revisions do not require validator or hash cycles. When a STEP is ready, run
@@ -40,6 +44,11 @@ update `STATUS.md` before detailing or starting its successor. If observed
 repository state and intended contracts disagree, keep the handoff `STALE` or
 `BLOCKED` until the contradiction is resolved; do not let either source
 silently redefine the other.
+
+Expected code changes within the current STEP do not reopen its contract.
+Revalidate on handoff, a new executor or resumed session, relevant artifact
+changes, or an explicit repository gate. Unrelated drafts and historical
+document hygiene are outside the bundled current-handoff check.
 
 ## Final phase gates
 

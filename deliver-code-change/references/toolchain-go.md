@@ -9,4 +9,8 @@ Typical evidence:
 - Static analysis: `go vet ./path/to/...`
 - Formatting check: inspect `gofmt -l <paths>` output
 
-Use broader `go test ./...` when repository policy or change impact requires it. Treat race-sensitive changes as High-risk and run the repository's race-testing approach when available.
+Use broader `go test ./...` when repository policy or change impact requires it.
+For concurrency changes, run the repository's race-testing approach when
+available. Select High-risk when races can materially violate shared-state
+correctness, data integrity, or consequential effects; classify other changes
+by their demonstrated impact.

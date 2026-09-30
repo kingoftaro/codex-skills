@@ -36,6 +36,14 @@ phase-step-planner
 值得启用专门实施流程时才使用 `deliver-code-change`。多阶段工作应先使用
 `phase-step-planner`，然后一次执行并验收一个步骤。
 
+风险按实际影响判断，不因出现重试、状态机等词汇自动升级。一个 STEP 通常
+包含实现、必要调用方和相关测试，优先使用模块范围加明确禁区；只有独立
+验收、风险或回滚边界需要时才拆分。
+
+保留 schema `1` 和 SHA-256 checkpoint。哈希只标识正式交接时审查过的 STEP
+文档版本，预期的实现 diff 不会让合同失效。在交接、新执行者接手或恢复会话、
+相关材料变化以及项目明确要求的门禁处复查。
+
 ## 仓库结构
 
 ```text
@@ -105,7 +113,7 @@ $SkillsPython = 'C:\absolute\path\to\python.exe'
 
 ```powershell
 Push-Location .\phase-step-planner\scripts
-& $SkillsPython -B -m unittest -v test_validate_phase_artifacts.py
+& $SkillsPython -B -m unittest -v test_validate_phase_artifacts.py test_validate_handoff_contract.py
 Pop-Location
 Push-Location .\deliver-code-change\scripts
 & $SkillsPython -B -m unittest -v test_manage_state.py test_validate_skill.py
@@ -118,7 +126,12 @@ Pop-Location
 & $SkillsPython .\phase-step-planner\scripts\validate_phase_artifacts.py <phase-directory>
 ```
 
-验证跨 skill 的路由/交接声明与对抗性测试夹具：
+默认仅检查 STATUS、索引和当前 STEP；添加 `--check-all-docs` 可查看全目录
+文档卫生警告。CLI 区分结构错误 `FAIL`、待同步 `STALE` 和已记录冲突
+`BLOCKED`；三者均返回退出码 `1`，不可执行。变更来源和语义冲突由 planner
+判断，验证器不会刷新 checkpoint 或修改 STATUS。
+
+验证跨 skill 的资源、模板结构与对抗性测试夹具：
 
 ```powershell
 & $SkillsPython .\phase-step-planner\scripts\validate_handoff_contract.py
@@ -127,6 +140,9 @@ Pop-Location
 这些验证和测试只使用本地文件，不需要网络访问。随附的阶段验证器返回
 `PASS`，只能证明结构与内部一致性，不能替代语义复审或绑定实时仓库状态的
 项目本地验证器。
+跨 skill 的措辞提示降为警告，同义改写不会使检查失败。资源缺失、引用损坏、
+模板结构错误和夹具失败仍是错误。两个验证器均不证明代码质量或提供授权；
+明确要求的验收条件仍须满足，不因问题严重级别较低而免除。
 
 ## 设计原则
 

@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 
 PHASE_STATES = {
@@ -64,6 +65,27 @@ REQUIRED_STEP_HEADINGS = {
     "## Stop and degrade",
     "## Deliverables",
 }
+
+
+@dataclass
+class PhaseValidation:
+    errors: list[str] = field(default_factory=list)
+    pending: list[str] = field(default_factory=list)
+    conflicts: list[str] = field(default_factory=list)
+
+    @property
+    def issues(self) -> list[str]:
+        return self.errors + self.conflicts + self.pending
+
+    @property
+    def outcome(self) -> str:
+        if self.errors:
+            return "FAIL"
+        if self.conflicts:
+            return "BLOCKED"
+        if self.pending:
+            return "STALE"
+        return "PASS"
 
 
 def sha256_checkpoint(path: Path) -> str:
@@ -224,20 +246,21 @@ def resolve_step(phase_dir: Path, relative: str, errors: list[str]) -> Path | No
     return resolved
 
 
-def validate_phase(phase_dir: Path) -> list[str]:
-    errors: list[str] = []
+def inspect_phase(phase_dir: Path) -> PhaseValidation:
+    result = PhaseValidation()
+    errors = result.errors
     phase_dir = phase_dir.resolve()
     if not phase_dir.is_dir():
-        return [f"phase directory does not exist: {phase_dir}"]
+        errors.append(f"phase directory does not exist: {phase_dir}")
+        return result
 
     readme_path = phase_dir / "README.md"
     status_path = phase_dir / "STATUS.md"
     readme_text = read_utf8(readme_path, errors)
     status_text = read_utf8(status_path, errors)
 
-    markdown_files = [path for path in phase_dir.glob("*.md") if path.is_file()]
-    for path in markdown_files:
-        text = read_utf8(path, errors)
+    # Only authoritative handoff materials can block current execution.
+    for path, text in ((readme_path, readme_text), (status_path, status_text)):
         placeholders = sorted(set(PLACEHOLDER_RE.findall(text)))
         if placeholders:
             errors.append(f"unresolved placeholders in {path.name}: {', '.join(placeholders)}")
@@ -274,7 +297,7 @@ def validate_phase(phase_dir: Path) -> list[str]:
         and audited_checkpoint
         and verified_checkpoint != audited_checkpoint
     ):
-        errors.append(
+        result.conflicts.append(
             "Verified Git checkpoint and audited repository checkpoint do not match: "
             f"verified={verified_checkpoint!r}, audited={audited_checkpoint!r}"
         )
@@ -297,15 +320,20 @@ def validate_phase(phase_dir: Path) -> list[str]:
             errors.append("terminal phase without a current step must not contain a detailed step")
         if repair_state != "inactive":
             errors.append("terminal phase without a current step must use inactive Repair loop")
-        return errors
+        return result
 
     if not current:
         errors.append("missing Current executable step")
-        return errors
+        return result
     if phase_state in TERMINAL_PHASE_STATES:
         errors.append("terminal phase must not identify a current executable step")
     if review_result != "PASS":
-        errors.append(
+        target = (
+            result.pending if review_result == "STALE"
+            else result.conflicts if review_result == "BLOCKED"
+            else errors
+        )
+        target.append(
             f"current handoff is not executable: Review result must be `PASS`, got {review_result!r}"
         )
     if len(detailed) != 1:
@@ -319,7 +347,7 @@ def validate_phase(phase_dir: Path) -> list[str]:
     if step_path is None or not step_path.is_file():
         if step_path is not None:
             errors.append(f"current step file does not exist: {step_path}")
-        return errors
+        return result
 
     step_text = read_utf8(step_path, errors)
     placeholders = sorted(set(PLACEHOLDER_RE.findall(step_text)))
@@ -375,7 +403,7 @@ def validate_phase(phase_dir: Path) -> list[str]:
 
     actual_checkpoint = sha256_checkpoint(step_path)
     if checkpoint != actual_checkpoint:
-        errors.append(
+        result.pending.append(
             "current step checkpoint mismatch: "
             f"recorded {checkpoint!r}, actual {actual_checkpoint!r}; "
             "classify attributable post-readiness drift as STALE, then use "
@@ -383,21 +411,47 @@ def validate_phase(phase_dir: Path) -> list[str]:
             "for clearly non-material deltas; unexplained or materially "
             "conflicting drift is BLOCKED"
         )
-    return errors
+    return result
+
+
+def validate_phase(phase_dir: Path) -> list[str]:
+    """Preserve the list-of-issues API used by existing callers."""
+    return inspect_phase(phase_dir).issues
+
+
+def document_warnings(phase_dir: Path) -> list[str]:
+    """Optional directory hygiene; never establishes handoff readiness."""
+    warnings: list[str] = []
+    for path in sorted(phase_dir.glob("*.md")):
+        if not path.is_file():
+            continue
+        try:
+            text = read_utf8(path, warnings)
+        except OSError as exc:
+            warnings.append(f"could not read optional document {path.name}: {exc}")
+            continue
+        placeholders = sorted(set(PLACEHOLDER_RE.findall(text)))
+        if placeholders:
+            warnings.append(f"unresolved placeholders in {path.name}: {', '.join(placeholders)}")
+    return warnings
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("phase_dir", nargs="?", type=Path)
     parser.add_argument("--print-checkpoint", type=Path, metavar="STEP_FILE")
+    parser.add_argument(
+        "--check-all-docs", action="store_true",
+        help="also report directory-wide document hygiene warnings (non-blocking)",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.print_checkpoint:
-        if args.phase_dir:
-            print("error: phase_dir and --print-checkpoint are mutually exclusive", file=sys.stderr)
+        if args.phase_dir or args.check_all_docs:
+            print("error: --print-checkpoint cannot be combined with phase validation", file=sys.stderr)
             return 2
         if not args.print_checkpoint.is_file():
             print(f"error: step file does not exist: {args.print_checkpoint}", file=sys.stderr)
@@ -408,11 +462,20 @@ def main(argv: list[str] | None = None) -> int:
         print("error: phase_dir is required", file=sys.stderr)
         return 2
 
-    errors = validate_phase(args.phase_dir)
-    if errors:
-        for error in errors:
+    result = inspect_phase(args.phase_dir)
+    if args.check_all_docs:
+        for warning in document_warnings(args.phase_dir):
+            print(f"WARNING: {warning}")
+    if result.issues:
+        for error in result.errors:
             print(f"ERROR: {error}")
-        print(f"FAIL: {len(errors)} validation error(s)")
+        for conflict in result.conflicts:
+            print(f"CONFLICT: {conflict}")
+        for pending in result.pending:
+            print(f"PENDING: {pending}")
+        print(f"{result.outcome}: handoff is not executable; {len(result.issues)} issue(s)")
+        if result.pending:
+            print("Pending review or STEP drift needs planner classification; the validator does not determine its origin or update STATUS.")
         return 1
     print(
         "PASS: phase artifacts are structurally and internally consistent; "

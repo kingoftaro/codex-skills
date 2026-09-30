@@ -48,6 +48,12 @@ Use only:
 
 Include the exact command and concise result. If a command was not run, do not imply that it passed.
 
+Check execution status, defect severity, and acceptance are separate judgments.
+An unmet required criterion prevents completion even for a P2 finding. An
+unavailable integration outside the agreed outcome is a reported limitation,
+not an additional completion gate. Phase handoff `STALE` describes pending
+document/review synchronization; it is distinct from a blocked check or conflict.
+
 ## Missing tools
 
 - Do not install tools automatically.

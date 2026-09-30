@@ -1,10 +1,13 @@
 # {{STEP_ID}}: {{STEP_NAME}}
 
-> Non-executable draft: defer review, checkpoint, and validation until handoff.
+> Draft until readiness review and handoff validation; STATUS records executability.
 
 ## One outcome
 
 {{SINGLE_VERIFIABLE_OUTCOME}}
+
+Describe one complete behavior, including necessary implementation, consumers,
+and tests. Split only for independent acceptance, material risk, or rollback.
 
 - Acceptance signal: {{EXACT_ACCEPTANCE_SIGNAL}}
 
@@ -29,8 +32,11 @@ This section is the authoritative implementation boundary. `STATUS.md` must refe
 |---|---|---|
 | {{ADD_OR_MODIFY}} | `{{PATH}}` | {{PURPOSE}} |
 
-Add read-only or forbidden rows only when useful. Stop before changing a file
-outside this boundary.
+For Fast and Standard work, prefer explicit module or directory scopes plus
+exclusions. Include directly relevant tests and private helpers in those
+scopes; do not require an exhaustive file list unless authority or risk needs
+one. Read-only and forbidden rows override a broader allowed scope. Stop
+before changing a file outside the boundary; an explicit allowlist stays binding.
 
 ## Contracts and invariants
 
@@ -53,7 +59,8 @@ Use `none` when no relevant effect exists; do not invent controls.
 - High-risk: also confirm applicable call chains, effects, isolation, recovery,
   and failure-mode tests.
 
-Do not describe absent mechanisms or risks.
+Keep this check concise and choose the implementation within the approved
+boundary. Do not prescribe file-by-file operations or describe absent risks.
 
 ## Acceptance
 

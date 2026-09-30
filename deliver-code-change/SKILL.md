@@ -79,14 +79,21 @@ Choose exactly one route after the direct-edit gate:
 |---|---|---|
 | Fast | Localized, obvious, low-risk correction | Inspect, edit, focused check |
 | Standard | Cross-file behavior, interface change, or moderate uncertainty | Concise dependency-aware plan and verification |
-| High-risk | Security, data migration, concurrency, authorization, destructive behavior, or external effects | Explicit invariants, failure modes, recovery, and stronger evidence |
+| High-risk | Material changes to trust, money, persistent data, shared-state correctness, irreversible effects, or operational failure scope | Explicit invariants, failure modes, recovery, and stronger evidence |
 
 A one-line authentication or permission change is High-risk.
+State machines, retries, concurrency, process code, or API clients require
+impact assessment; their names alone do not select High-risk. Use
+[references/routing.md](references/routing.md) when the impact is unclear.
 
 - Fast: keep only a short internal checklist and normally load no reference.
 - Standard: track implementation steps, affected areas, and verification.
 - High-risk: identify invariants, failure modes, recovery strategy, and
   acceptance evidence before editing.
+
+Within an approved module boundary, choose the local implementation and add
+directly relevant tests or private helpers. An explicit file allowlist remains
+binding; this does not authorize new modules, contracts, or effects.
 
 ## Implementation
 
@@ -116,6 +123,9 @@ missing tools automatically. Classify every relevant check:
 
 Never convert skipped, assumed, or blocked checks into `PASS`, and do not claim
 unit tests prove external integration behavior.
+An unmet required acceptance criterion prevents completion regardless of a
+finding's severity. An unavailable, out-of-scope integration does not create
+a new gate; report the verified boundary accurately.
 
 ## Persistent state and handoff
 

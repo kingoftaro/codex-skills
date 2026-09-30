@@ -35,6 +35,11 @@ templates only when no repository convention exists.
 
 Treat a STEP as an executable contract, not an exhaustive proof. Include
 conditional concerns only when evidence makes them apply.
+Group implementation, necessary consumers, and tests into one complete
+verifiable outcome. Split for independent acceptance, material risk, or
+rollback boundaries, not for individual file edits. Prefer module boundaries
+with explicit exclusions for Fast and Standard work; use file allowlists when
+the contract or authority requires them.
 
 ## Execution cycle
 
@@ -56,14 +61,16 @@ validator or hash cycles. At handoff, choose review depth by material risk:
   validation, with no independent pre-implementation review.
 - **Standard:** cross-file behavior, interfaces, or moderate uncertainty; one
   independent executable-contract review.
-- **High-risk:** security, authorization, migration, concurrency, destructive
-  behavior, or external effects; also review applicable failure, recovery, and
-  isolation controls with stronger evidence.
+- **High-risk:** material changes to trust, money, persistent data,
+  shared-state correctness, irreversible effects, or operational failure
+  scope; also review applicable failure, recovery, and isolation controls.
 
 Risk overrides diff size. Every route checks the outcome, non-goals, file and
 effect boundary, relevant contract or invariant, acceptance signal, and stop
 condition. Do not invent controls to fill the template. Independent
 post-implementation acceptance remains required.
+Assess actual consequences of retries, state machines, concurrency, processes,
+and external clients; a mechanism name alone does not select High-risk.
 
 Only a material execution ambiguity or contradiction, a `CONFIRMED` or
 `STRONG` P0/P1, or an explicit project gate blocks readiness. P2/P3, wording,
@@ -100,6 +107,9 @@ and plans are not evidence. Use `STALE` for evidence-backed synchronization,
 `BLOCKED` for material implementation, contract, authority, or evidence
 conflict, and `PASS` only when executable. Acceptance requires current evidence
 and documented remaining risks.
+An unmet required acceptance criterion prevents acceptance regardless of the
+finding's severity. Unavailable integrations outside the agreed outcome are
+reported as limitations, not added as new gates.
 
 ## Executable handoff
 
@@ -129,6 +139,17 @@ resolve the explicit paths and run:
 
 Bundled validation uses schema `1`; do not infer cross-version compatibility.
 Its `PASS` proves structure and internal consistency only.
+It checks STATUS, the phase index, and the current STEP. Inspect named
+dependencies only where they affect the contract; unrelated drafts and
+historical document hygiene do not block the bundled handoff. Optional
+`--check-all-docs` reports directory-wide hygiene warnings.
+
+Record one digest per reviewed STEP version at formal handoff. Recheck at a
+new executor or resumed session, after relevant artifact changes, or when an
+explicit repository gate requires it. Expected code edits do not change the
+STEP digest or invalidate its contract; recheck assumptions if actual
+repository changes contradict them. The digest is a document fingerprint,
+not evidence of code quality, live Git state, or authorization.
 
 A checkpoint mismatch is non-executable, not automatically `BLOCKED`. Expected,
 attributable post-readiness edits are `STALE`: repeat the selected review for a
@@ -136,6 +157,10 @@ material delta, or confirm a clearly non-material diff, before recording a new
 checkpoint. Unexplained drift or a material contract, boundary, authority, or
 evidence conflict is `BLOCKED`. Never refresh the hash without reviewing the
 delta or silently repair STATUS.
+Bundled CLI results distinguish structural `FAIL`, pending synchronization
+`STALE`, and recorded-conflict `BLOCKED`; all return a nonzero exit code. A
+digest mismatch needs classification, not an automatic material block. Only
+the planner can refresh the checkpoint after the required delta confirmation.
 
 Give the executor only applicable repository instructions, STATUS, the current
 STEP, and named read-only references. Handoff `PASS` grants no extra authority.
@@ -147,6 +172,9 @@ to `PASS`. The planner owns boundaries, handoff validation, and independent
 acceptance. The executor implements and verifies only the current STEP; it
 cannot redefine scope or acceptance, approve itself, or define a successor.
 The planner does not implement while acting as planner.
+Acceptance inspects the actual diff and raw evidence afresh, rather than
+endorsing the executor's summary. Use a separate reviewer when the project or
+review route requires it; role labels alone are not an independent check.
 
 ## Resources and final rule
 
@@ -160,10 +188,14 @@ Load or use only what the current condition requires:
 - `references/repair-loop.md` on the first qualifying repair regression or
   whenever STATUS records a
   non-`inactive` `Repair loop`;
-- `scripts/validate_phase_artifacts.py` before handing off, resuming, accepting,
-  or advancing an applicable bundled-contract phase;
+- `scripts/validate_phase_artifacts.py` at handoff, a new executor or resumed
+  session, relevant artifact changes, or an explicit repository gate;
 - `scripts/validate_handoff_contract.py` after changing bundled templates,
   validator, or executor handoff contract.
+
+Cross-skill prose hints are advisory maintenance checks. Missing resources,
+broken references, invalid template structure, and failed fixtures remain
+errors; exact phrasing does not establish semantic correctness.
 
 Keep project architecture, paths, commands, thresholds, and stricter schemas in
 repository instructions or phase artifacts, not this skill.

@@ -1,6 +1,7 @@
 # High-risk Controls
 
-Apply every matching section. Repository-specific rules may add stricter controls.
+Apply sections matching the demonstrated consequence, not every mechanism
+mentioned in the code. Repository-specific rules may add stricter controls.
 
 ## Authentication and authorization
 
@@ -13,7 +14,7 @@ Apply every matching section. Repository-specific rules may add stricter control
 
 - Use decimal or fixed-point representations appropriate to the domain; do not use binary floating point for monetary values.
 - Define currency, scale, rounding mode, and boundary behavior.
-- Test zero, negative, maximum, rounding, duplicate, and partial-failure cases.
+- Test applicable boundary, rounding, duplicate, and partial-failure cases.
 - Verify idempotency and reconciliation for external transactions.
 
 ## Migrations and destructive data behavior
@@ -25,14 +26,14 @@ Apply every matching section. Repository-specific rules may add stricter control
 
 ## State, retries, and concurrency
 
-- Enumerate legal and illegal transitions.
-- Test duplicate delivery, reordering, cancellation, timeout, and concurrent execution.
+- Identify transitions that protect the governing invariant.
+- Test the duplicate delivery, reordering, cancellation, timeout, or concurrent execution paths that can violate it.
 - Make retries bounded and safe; persist idempotency where the side effect requires it.
 
 ## External systems
 
-- Define timeout, retry, rate-limit, authentication, and response-validation behavior.
-- Test malformed, partial, delayed, duplicate, and unavailable responses.
+- Define applicable timeout, retry, rate-limit, authentication, and response-validation behavior.
+- Test response and failure cases that can violate the changed contract or effect boundary.
 - Separate mocked contract evidence from a real integration result.
 
 ## Operations and deployment

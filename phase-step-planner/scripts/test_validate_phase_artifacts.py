@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import json
+import io
+import re
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from validate_phase_artifacts import (
     REQUIRED_STATUS_LABELS,
     REQUIRED_STEP_HEADINGS,
+    inspect_phase,
+    main,
+    read_utf8,
     sha256_checkpoint,
     validate_phase,
 )
@@ -131,6 +138,122 @@ class ValidatePhaseArtifactsTests(unittest.TestCase):
 
     def test_valid_phase_passes(self) -> None:
         self.assertEqual(validate_phase(self.make_phase()), [])
+
+    def test_generated_templates_validate(self) -> None:
+        root = self.make_phase()
+        assets = Path(__file__).resolve().parent.parent / "assets"
+        values = {"STEP_DOCUMENT": "STEP_001_freeze_contract.md",
+                  "CURRENT_STEP_DOCUMENT": "STEP_001_freeze_contract.md",
+                  "FAST_STANDARD_OR_HIGH_RISK": "Fast",
+                  "COMMIT_OR_UNCOMMITTED_EXPLANATION": "abc123",
+                  "AUDITED_REPOSITORY_CHECKPOINT": "abc123"}
+
+        def render(name: str) -> str:
+            return re.sub(r"\{\{([A-Z][A-Z0-9_]*)\}\}",
+                          lambda match: values.get(match[1], "none"),
+                          assets.joinpath(name).read_text(encoding="utf-8"))
+
+        step = root / "STEP_001_freeze_contract.md"
+        step.write_text(render("STEP_TEMPLATE.md"), encoding="utf-8")
+        values["CURRENT_STEP_SHA256"] = sha256_checkpoint(step).removeprefix("sha256:")
+        root.joinpath("STATUS.md").write_text(
+            render("STATUS_TEMPLATE.md")
+            .replace("PASS / STALE / BLOCKED / NOT_APPLICABLE", "PASS")
+            .replace("not-started / in-progress / development-complete / accepted / release-ready / release-blocked", "in-progress"),
+            encoding="utf-8",
+        )
+        root.joinpath("README.md").write_text(
+            render("PHASE_README_TEMPLATE.md").replace("detailed / outline / accepted / deferred", "detailed"),
+            encoding="utf-8",
+        )
+        self.assertEqual(validate_phase(root), [])
+
+    def test_unrelated_drafts_and_history_do_not_block(self) -> None:
+        root = self.make_phase(extra_row="| `STEP_002_draft.md` | Later | STEP_001 | none | outline |\n")
+        root.joinpath("STEP_002_draft.md").write_text("{{LATER_OUTCOME}}", encoding="utf-8")
+        root.joinpath("HISTORY.md").write_bytes(b"\xff{{OLD_NOTE}}")
+        self.assertEqual(validate_phase(root), [])
+
+    def test_authoritative_status_and_index_placeholders_block(self) -> None:
+        for name in ("STATUS.md", "README.md"):
+            with self.subTest(name=name):
+                root = self.make_phase()
+                path = root / name
+                path.write_text(path.read_text(encoding="utf-8") + "\n{{LEFTOVER}}\n", encoding="utf-8")
+                result = inspect_phase(root)
+                self.assertEqual(result.outcome, "FAIL")
+                self.assertTrue(any(name in error and "unresolved placeholders" in error for error in result.errors))
+
+    def test_expected_code_edit_does_not_invalidate_document_checkpoint(self) -> None:
+        root = self.make_phase()
+        root.joinpath("src").mkdir()
+        root.joinpath("src", "contract.py").write_text("result = 1\n", encoding="utf-8")
+        self.assertEqual(validate_phase(root), [])
+
+    def run_cli(self, root: Path, *options: str) -> tuple[int, str]:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            exit_code = main([str(root), *options])
+        return exit_code, output.getvalue()
+
+    def test_cli_distinguishes_stale_blocked_and_structural_failure(self) -> None:
+        for review, expected in (("STALE", "STALE"), ("BLOCKED", "BLOCKED"), ("invalid", "FAIL")):
+            with self.subTest(review=review):
+                root = self.make_phase(review_result=review)
+                before = root.joinpath("STATUS.md").read_bytes()
+                code, output = self.run_cli(root)
+                self.assertEqual(code, 1)
+                self.assertIn(f"{expected}: handoff is not executable", output)
+                self.assertEqual(root.joinpath("STATUS.md").read_bytes(), before)
+
+    def test_digest_mismatch_requires_classification_and_remains_nonexecutable(self) -> None:
+        root = self.make_phase(recorded_checkpoint="sha256:" + "0" * 64)
+        code, output = self.run_cli(root)
+        self.assertEqual(code, 1)
+        self.assertIn("STALE: handoff is not executable", output)
+        self.assertIn("does not determine its origin", output)
+        self.assertNotIn("BLOCKED: handoff", output)
+
+    def test_recorded_baseline_conflict_is_blocked(self) -> None:
+        root = self.make_phase(audited_checkpoint="different")
+        code, output = self.run_cli(root)
+        self.assertEqual(code, 1)
+        self.assertIn("BLOCKED: handoff is not executable", output)
+
+    def test_structure_failure_takes_priority_over_pending_sync(self) -> None:
+        root = self.make_phase(step_text=STEP_BODY + "\n{{LEFTOVER}}\n", review_result="STALE")
+        code, output = self.run_cli(root)
+        self.assertEqual(code, 1)
+        self.assertIn("FAIL: handoff is not executable", output)
+
+    def test_optional_directory_hygiene_is_advisory(self) -> None:
+        root = self.make_phase()
+        root.joinpath("STEP_002_draft.md").write_text("{{LATER_OUTCOME}}", encoding="utf-8")
+        code, output = self.run_cli(root, "--check-all-docs")
+        self.assertEqual(code, 0)
+        self.assertIn("WARNING: unresolved placeholders in STEP_002_draft.md", output)
+        self.assertIn("PASS:", output)
+
+    def test_directory_hygiene_does_not_override_current_errors(self) -> None:
+        root = self.make_phase(step_text=STEP_BODY + "\n{{LEFTOVER}}\n")
+        code, output = self.run_cli(root, "--check-all-docs")
+        self.assertEqual(code, 1)
+        self.assertIn("FAIL: handoff is not executable", output)
+
+    def test_unreadable_optional_document_is_only_a_warning(self) -> None:
+        root = self.make_phase()
+        root.joinpath("DRAFT.md").write_text("draft", encoding="utf-8")
+
+        def controlled_read(path: Path, issues: list[str]) -> str:
+            if path.name == "DRAFT.md":
+                raise PermissionError("controlled unreadable fixture")
+            return read_utf8(path, issues)
+
+        with patch("validate_phase_artifacts.read_utf8", side_effect=controlled_read):
+            code, output = self.run_cli(root, "--check-all-docs")
+        self.assertEqual(code, 0)
+        self.assertIn("WARNING: could not read optional document DRAFT.md", output)
+        self.assertIn("PASS:", output)
 
     def test_non_pass_handoff_is_not_executable(self) -> None:
         for review_result in ("STALE", "BLOCKED", "NOT_APPLICABLE"):

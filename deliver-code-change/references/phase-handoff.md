@@ -48,6 +48,19 @@ return the conflict. Do not run hash validation in either case.
 
 Do not silently repair phase artifacts while acting as the implementation executor.
 
+Validate on initial handoff, a new executor or resumed session, and relevant
+handoff artifact changes, plus any explicit repository gate. Do not repeat
+hash checks after each expected code edit. The STEP digest binds the reviewed
+document version; it does not prove code quality, live Git state, or permission.
+Expected implementation diffs within the contract do not invalidate that
+contract. Reconcile only material changes to its assumptions or boundaries.
+
+The bundled CLI uses `FAIL` for structural errors, `STALE` for pending review
+or document-version synchronization, and `BLOCKED` for recorded conflicts.
+All are non-executable and return a nonzero exit code. A digest mismatch alone
+cannot establish its origin: return it for planner classification, without
+automatically treating it as a material block. Repository validator rules win.
+
 ## Execute one step
 
 - Treat the STEP's One outcome, Non-goals, File boundary, relevant Contracts
@@ -59,7 +72,10 @@ Do not silently repair phase artifacts while acting as the implementation execut
   Standard or High-risk route and repository evidence require them.
 - Select Fast, Standard, or High-risk within that boundary. Evidence may raise
   verification depth but does not authorize broader scope.
-- Modify only allowed files. Read-only and forbidden scopes remain unchanged unless the user or phase planner explicitly revises the STEP.
+- Modify only the allowed file or module scope, including directly relevant
+  tests and private helpers when that scope permits them. An explicit file
+  allowlist, read-only scope, or forbidden scope remains binding unless the
+  user or phase planner revises the boundary.
 - Block every external effect that the STEP forbids in automated tests.
 - Stop when a missing interface, migration, dependency, or side effect requires work assigned to a later step.
 - Classify a follow-on failure as latent, repair-introduced, or an

@@ -1,6 +1,6 @@
 # Phase {{PHASE_ID}} current status
 
-> This is the phase's single verified snapshot. Update it only from repository evidence after acceptance; do not use it as a speculative plan.
+> This is the phase's single authoritative snapshot. Update it from repository evidence during readiness, reconciliation, and acceptance; do not use it as a speculative plan.
 
 ## Snapshot identity
 
@@ -27,6 +27,11 @@ not require validator or hash cycles. For an `accepted` or `release-ready`
 phase with no active step, use `NOT_APPLICABLE` for the review result, `none`
 for the current executable step, `not-applicable` for its checkpoint, and leave
 no step marked `detailed` in `README.md`.
+
+The STEP checkpoint identifies the reviewed document version. Record it at
+handoff and recheck on a new executor or resumed session, relevant artifact
+changes, or an explicit repository gate. Expected implementation diffs do not
+invalidate the contract. It is not a code-quality, live-Git, or permission check.
 
 The `Repair loop` JSON is the machine-readable snapshot for the current
 governing invariant. Use `observing` after the first qualifying regression and
@@ -90,4 +95,7 @@ Use `reset` after evidence-backed root-cause review. Terminal phases use
   changes require only focused diff confirmation and checkpoint refresh.
   Classify unexplained drift or a material contract, boundary, authority, or
   evidence conflict as `BLOCKED`.
+- Bundled validator `FAIL` means structural errors; `STALE` means pending
+  synchronization; `BLOCKED` means a recorded conflict. All are non-executable.
+  A mismatch alone does not establish drift origin or authorize hash refresh.
 - Keep behavioral guarantees in executable code and tests; link them here.

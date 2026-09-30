@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
-"""Validate the bundled planner-to-executor handoff contract."""
+"""Check handoff structure and fixtures; prose hints are advisory only."""
 
 from __future__ import annotations
 
+import re
 import tempfile
 from pathlib import Path
 
-from validate_phase_artifacts import sha256_checkpoint, validate_phase
+from validate_phase_artifacts import (
+    REQUIRED_STEP_HEADINGS,
+    STEP_HANDOFF_SCHEMA_RE,
+    SUPPORTED_HANDOFF_SCHEMA,
+    sha256_checkpoint,
+    status_values,
+    unquote_code,
+    validate_phase,
+)
 
 STEP_BODY = """# STEP_001: Freeze contract
 
@@ -81,10 +90,11 @@ def make_phase(root: Path) -> tuple[Path, Path]:
     return status, step
 
 
-def main() -> int:
+def validate_declarations(repository_root: Path) -> tuple[list[str], list[str]]:
+    """Check files, discoverable references, and the bundled template schema."""
     failures: list[str] = []
-    skill_root = Path(__file__).resolve().parent.parent
-    repository_root = skill_root.parent
+    warnings: list[str] = []
+    skill_root = repository_root / "phase-step-planner"
     executor_skill = repository_root / "deliver-code-change" / "SKILL.md"
     planner_agent = skill_root / "agents" / "openai.yaml"
     executor_agent = repository_root / "deliver-code-change" / "agents" / "openai.yaml"
@@ -101,6 +111,7 @@ def main() -> int:
     )
 
     required_files = (
+        skill_root / "SKILL.md",
         executor_skill,
         planner_agent,
         executor_agent,
@@ -112,117 +123,65 @@ def main() -> int:
         planner_readme_template,
         executor_handoff,
     )
-    if not all(path.is_file() for path in required_files):
-        failures.append(
-            "adjacent skills, agent metadata, templates, routing, repair-loop, "
-            "and handoff references are required"
-        )
-    else:
-        planner_text = skill_root.joinpath("SKILL.md").read_text(encoding="utf-8")
-        skill_text = executor_skill.read_text(encoding="utf-8")
-        planner_agent_text = planner_agent.read_text(encoding="utf-8")
-        executor_agent_text = executor_agent.read_text(encoding="utf-8")
-        routing_text = executor_routing.read_text(encoding="utf-8")
-        failure_text = planner_failures.read_text(encoding="utf-8")
-        repair_loop_text = planner_repair_loop.read_text(encoding="utf-8")
-        step_template_text = planner_step_template.read_text(encoding="utf-8")
-        status_template_text = planner_status_template.read_text(encoding="utf-8")
-        readme_template_text = planner_readme_template.read_text(encoding="utf-8")
-        handoff_text = executor_handoff.read_text(encoding="utf-8")
-        for phrase, text, label in (
-            ("Do not use for ordinary review", skill_text, "executor frontmatter"),
-            ("multi-stage phase planning", skill_text, "executor frontmatter"),
-            (
-                "Do not use merely because a task is large",
-                planner_text,
-                "planner frontmatter",
-            ),
-            ("unrelated phase files exist", planner_text, "planner frontmatter"),
-            (
-                "Keep ordinary exploration, review, and trivial edits direct",
-                routing_text,
-                "direct-edit routing",
-            ),
-            (
-                "bounded non-trivial code outcome",
-                executor_agent_text,
-                "executor agent metadata",
-            ),
-            (
-                "persistent STATUS/STEP phase handoffs",
-                planner_agent_text,
-                "planner agent metadata",
-            ),
-            ("Repair-loop Circuit Breaker", planner_text, "planner repair-loop gate"),
-            (
-                "Phase-like files alone do not establish applicability",
-                planner_text,
-                "planner handoff applicability",
-            ),
-            (
-                "Do not review every draft",
-                planner_text,
-                "planner readiness review gate",
-            ),
-            (
-                "one initial review and one focused delta review",
-                planner_text,
-                "planner review budget",
-            ),
-            (
-                "Review route: {{FAST_STANDARD_OR_HIGH_RISK}}",
-                step_template_text,
-                "step review route",
-            ),
-            (
-                "ordinary draft revisions do not require validator or hash cycles",
-                status_template_text,
-                "status draft lifecycle",
-            ),
-            (
-                "draft revisions do not require validator or hash cycles",
-                readme_template_text,
-                "phase index draft lifecycle",
-            ),
-            ("Only after this gate", skill_text, "executor applicability gate"),
-            (
-                "Symptom patch creates an adjacent regression",
-                failure_text,
-                "planner repair-loop pattern",
-            ),
-            ("repair-loop circuit breaker", handoff_text, "executor repair-loop return"),
-        ):
-            if not contains_phrase(text, phrase):
-                failures.append(f"{label} is missing routing contract phrase {phrase!r}")
-        if "[references/phase-handoff.md](references/phase-handoff.md)" not in skill_text:
-            failures.append("executor SKILL.md does not route phase-managed work to phase-handoff.md")
-        if "[references/repair-loop.md](references/repair-loop.md)" not in planner_text:
-            failures.append("planner SKILL.md does not route active repair loops to repair-loop.md")
-        for term in (
-            "consecutive_regressions",
-            "independent acceptance or rollback boundaries",
-            "root-cause evidence",
-            "CONFIRMED",
-            "newly evidenced root-cause event",
-            "do not change the snapshot",
-        ):
-            if not contains_phrase(repair_loop_text, term):
-                failures.append(f"planner repair-loop contract is missing {term!r}")
-        for phrase in (
-            "Establish applicability first",
-            "authoritative validator",
-            "Review result",
-            "Handoff schema",
-            "current executable STEP",
-            "sha256:",
-            "STALE",
-            "BLOCKED",
-            "material delta requires the selected readiness review again",
-            "focused diff confirmation",
-            "executor never refreshes the hash",
-        ):
-            if not contains_phrase(handoff_text, phrase):
-                failures.append(f"executor handoff contract is missing {phrase!r}")
+    for path in required_files:
+        if not path.is_file():
+            failures.append(f"missing required resource: {path.relative_to(repository_root)}")
+    if failures:
+        return failures, warnings
+
+    for entrypoint, required_reference in (
+        (executor_skill, executor_handoff),
+        (skill_root / "SKILL.md", planner_repair_loop),
+    ):
+        targets: set[Path] = set()
+        for target in re.findall(r"\[[^\]]+\]\(([^)]+)\)", entrypoint.read_text(encoding="utf-8")):
+            clean = target.split("#", 1)[0]
+            if not clean or re.match(r"^[a-z]+://", clean, re.IGNORECASE):
+                continue
+            resolved = (entrypoint.parent / clean).resolve()
+            targets.add(resolved)
+            if not resolved.is_file():
+                failures.append(f"broken reference in {entrypoint.name}: {target}")
+        if required_reference.resolve() not in targets:
+            failures.append(f"{entrypoint} must link to {required_reference.name}")
+
+    status_text = planner_status_template.read_text(encoding="utf-8")
+    step_text = planner_step_template.read_text(encoding="utf-8")
+    step_lines = step_text.splitlines()
+    values = status_values(status_text, failures)
+    if unquote_code(values.get("Handoff schema", "")) != SUPPORTED_HANDOFF_SCHEMA:
+        failures.append("STATUS template must declare the supported handoff schema")
+    schemas = STEP_HANDOFF_SCHEMA_RE.findall(step_text)
+    if len(schemas) != 1 or unquote_code(schemas[0].strip()) != SUPPORTED_HANDOFF_SCHEMA:
+        failures.append("STEP template must declare one supported handoff schema")
+    for heading in sorted(REQUIRED_STEP_HEADINGS):
+        if step_lines.count(heading) != 1:
+            failures.append(f"STEP template must contain one {heading!r} section")
+    index_lines = planner_readme_template.read_text(encoding="utf-8").splitlines()
+    if not any(
+        len(cells := [cell.strip() for cell in line.strip().strip("|").split("|")]) == 5
+        and cells[0] == "Step document"
+        for line in index_lines if line.lstrip().startswith("|")
+    ):
+        failures.append("phase index template must contain a five-column step table")
+
+    # Cheap reminders for maintainers, not semantic correctness or execution gates.
+    for path, phrase in (
+        (skill_root / "SKILL.md", "Do not review every draft"),
+        (skill_root / "SKILL.md", "one initial review and one focused delta review"),
+        (executor_routing, "Keep ordinary exploration, review, and trivial edits direct"),
+        (executor_handoff, "executor never refreshes the hash"),
+    ):
+        if not contains_phrase(path.read_text(encoding="utf-8"), phrase):
+            warnings.append(
+                f"{path.relative_to(repository_root)}: prose hint {phrase!r} changed; "
+                "review its meaning if needed (equivalent wording is allowed)"
+            )
+    return failures, warnings
+
+
+def validate_fixtures() -> list[str]:
+    failures: list[str] = []
 
     with tempfile.TemporaryDirectory() as temporary:
         phase = Path(temporary)
@@ -246,6 +205,23 @@ def main() -> int:
         if not any("checkpoint mismatch" in error for error in drift_errors):
             failures.append("STEP checkpoint drift was not rejected")
 
+        step.write_text(STEP_BODY, encoding="utf-8")
+        status.write_text(
+            original_status.replace("- Handoff schema: 1", "- Handoff schema: 99"),
+            encoding="utf-8",
+        )
+        if not any("unsupported" in error for error in validate_phase(phase)):
+            failures.append("unsupported handoff schema was not rejected")
+    return failures
+
+
+def main() -> int:
+    repository_root = Path(__file__).resolve().parents[2]
+    failures, warnings = validate_declarations(repository_root)
+    failures.extend(validate_fixtures())
+    for warning in warnings:
+        print(f"WARNING: {warning}")
+
     if failures:
         for failure in failures:
             print(f"FAIL: {failure}")
@@ -253,8 +229,8 @@ def main() -> int:
         return 1
 
     print(
-        "PASS: bundled routing and handoff declarations plus adversarial phase "
-        "fixtures are consistent"
+        "PASS: handoff resources, template structure, and adversarial fixtures "
+        "are consistent; prose hints are advisory and semantics need review"
     )
     return 0
 

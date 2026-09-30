@@ -37,6 +37,16 @@ instructions without loading a skill or creating process artifacts. Use
 implementation workflow. For a multi-stage phase, start with
 `phase-step-planner` and execute one accepted step at a time.
 
+Choose risk from material consequences, not keywords such as retries or state
+machines. A STEP normally includes implementation, necessary consumers, and
+tests within a module scope plus explicit exclusions. Split only where
+acceptance, risk, or rollback requires separate outcomes.
+
+Schema `1` and SHA-256 checkpoints remain supported. A checkpoint identifies
+one reviewed STEP document version at handoff; expected implementation diffs
+do not invalidate the contract. Recheck on handoff, a new executor or resumed
+session, relevant artifact changes, or explicit repository gates.
+
 ## Repository layout
 
 ```text
@@ -106,7 +116,7 @@ Run the isolated validator and recovery-state tests:
 
 ```powershell
 Push-Location .\phase-step-planner\scripts
-& $SkillsPython -B -m unittest -v test_validate_phase_artifacts.py
+& $SkillsPython -B -m unittest -v test_validate_phase_artifacts.py test_validate_handoff_contract.py
 Pop-Location
 Push-Location .\deliver-code-change\scripts
 & $SkillsPython -B -m unittest -v test_manage_state.py test_validate_skill.py
@@ -119,7 +129,14 @@ Validate generated phase artifacts:
 & $SkillsPython .\phase-step-planner\scripts\validate_phase_artifacts.py <phase-directory>
 ```
 
-Validate the cross-skill routing/handoff declarations and adversarial fixtures:
+The default check covers STATUS, the index, and the current STEP. Use
+`--check-all-docs` to report optional directory-wide hygiene warnings. CLI
+results distinguish structural `FAIL`, pending synchronization `STALE`, and
+recorded-conflict `BLOCKED`; all three return exit code `1` and prevent
+execution. Drift origin and semantic conflicts require planner review;
+the validator never refreshes a checkpoint or changes STATUS.
+
+Validate cross-skill resources, template structure, and adversarial fixtures:
 
 ```powershell
 & $SkillsPython .\phase-step-planner\scripts\validate_handoff_contract.py
@@ -128,6 +145,10 @@ Validate the cross-skill routing/handoff declarations and adversarial fixtures:
 The validation and unit-test paths use only local files and do not require network access.
 A bundled phase-validator PASS proves structural and internal consistency; it
 does not replace semantic review or a repository-local live-state validator.
+Cross-skill wording hints are warnings, so equivalent prose does not fail the
+check. Missing resources, broken references, invalid template structure, and
+failed fixtures remain errors. Neither validator proves code quality or grants
+permission. Required acceptance criteria remain binding regardless of severity.
 
 ## Design principles
 
